@@ -1,0 +1,6 @@
+node_modules/
+.env
+
+optimized_docs/*
+!optimized_docs/.gitkeep
+faq_data.csv
