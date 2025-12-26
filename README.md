@@ -55,7 +55,6 @@ cp .env.sample .env
 ## 構築ワークフロー
 
 ### Step 1: データの準備 (CSV)
-### Step 1: データの準備 (CSV)
 `faq_data.sample.csv` をコピーして `faq_data.csv` を作成し、実際のデータを入力してください。
 フォーマットは、ヘッダーなし、1列目が質問、2列目が回答です。
 
