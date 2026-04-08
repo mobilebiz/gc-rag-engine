@@ -4,3 +4,5 @@ node_modules/
 optimized_docs/*
 !optimized_docs/.gitkeep
 faq_data.csv
+.optimize_state.json
+.last_import_operation.json

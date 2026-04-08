@@ -7,12 +7,15 @@
   "scripts": {
     "start": "node index.js",
     "search": "node query.js",
+    "sync": "node run_pipeline.js",
+    "sync:full": "node run_pipeline.js --full",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Katsumi Takahashi",
   "license": "ISC",
   "dependencies": {
     "@google-cloud/discoveryengine": "^2.5.2",
+    "@google-cloud/storage": "^7.19.0",
     "@google/generative-ai": "^0.24.1",
     "dotenv": "^17.2.3",
     "express": "^5.2.1"
