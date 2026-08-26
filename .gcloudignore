@@ -1,0 +1,23 @@
+# Cloud Run へのソースアップロードから除外するもの
+# (このファイルが存在する場合、gcloud は .gitignore を参照しない)
+
+.git/
+.gitignore
+.claude/
+
+node_modules/
+
+# ローカルの秘密情報
+.env
+.env.*
+!.env.sample
+
+# 同期パイプラインの生成物・状態ファイル (検索 API の実行には不要)
+optimized_docs/
+.optimize_state.json
+.last_import_operation.json
+
+# 検索 API の実行に不要なもの
+test/
+deploy.sh
+*.md
