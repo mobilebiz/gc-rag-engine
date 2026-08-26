@@ -106,6 +106,7 @@ cp .env.sample .env
 | `CLOUD_RUN_SERVICE` | | デプロイ先サービス名（既定 `rag-engine-service`） |
 | `CLOUD_RUN_REGION` | | デプロイ先リージョン（既定 `asia-northeast1`） |
 | `CLOUD_RUN_SERVICE_ACCOUNT` | | 実行サービスアカウント（既定 `rag-app-runner@<PROJECT_ID>.iam.gserviceaccount.com`） |
+| `CLOUD_RUN_MIN_INSTANCES` | | 常時起動インスタンス数（既定 `0`）。`1` にするとインスタンスベース課金になります |
 
 不足している変数はコマンド実行時にまとめて指摘されます。
 
@@ -587,6 +588,74 @@ Agent Platform への統合でメニュー位置が変わっています。
 
 `.env` から検索 API の実行に必要な変数だけを Cloud Run に渡します。
 **Gemini API キーと kintone の認証情報は同期パイプライン専用のため、Cloud Run には渡しません。**
+
+### レイテンシとコールドスタート
+
+検索頻度が低いと Cloud Run はインスタンスをゼロまで縮退させるため、
+久しぶりのリクエストでコールドスタート（Node.js で概ね 0.5〜2 秒）が発生します。
+
+ただし **`/search` の所要時間の大半はコールドスタートではなく `answerQuery`（LLM による回答生成）**
+であることが多いです。対策を入れる前に、まず内訳を確認してください。
+
+#### 内訳をログで確認する
+
+`src/search.js` と `src/server.js` が各段階の所要時間を構造化ログに出します。
+
+```bash
+gcloud run services logs read rag-engine-service \
+  --region "${CLOUD_RUN_REGION:-asia-northeast1}" --limit=50 \
+  --format='value(textPayload,jsonPayload)'
+```
+
+| フィールド | 意味 |
+| :--- | :--- |
+| `searchMs` | ドキュメント検索の所要時間 |
+| `answerMs` | 回答生成（`answerQuery`）の所要時間 |
+| `totalMs` | 上記の合計 |
+| `requestMs` | HTTP リクエスト全体。`totalMs` との差がアプリ側のオーバーヘッド |
+| `coldStart` | そのインスタンスで最初のリクエストのときだけ `true` |
+| `clientInitMs` | クライアント生成にかかった時間（コールドスタート時のみ） |
+| `processUptimeMs` | プロセス起動からリクエスト到達までの時間。コンテナ起動ぶんの目安 |
+
+`coldStart: true` のリクエストと通常のリクエストで `requestMs` を比べれば、
+コールドスタートが実際に何ミリ秒効いているかが分かります。
+
+#### 対策（効果と費用の順）
+
+1. **起動 CPU ブースト** — `deploy.sh` で `--cpu-boost` を既定で有効にしています。
+   Node.js では起動時間が 3 割ほど短くなり、追加費用は起動中のわずかな分だけです。
+
+2. **定期的にウォームに保つ** — 検索頻度が低い場合はこれが費用対効果に優れます。
+   Cloud Scheduler から `/healthz` を叩いてインスタンスを維持します。
+
+   ```bash
+   gcloud services enable cloudscheduler.googleapis.com
+
+   SERVICE_URL=$(gcloud run services describe rag-engine-service \
+     --region "${CLOUD_RUN_REGION:-asia-northeast1}" --format='value(status.url)')
+
+   gcloud scheduler jobs create http rag-engine-keepalive \
+     --location="${CLOUD_RUN_REGION:-asia-northeast1}" \
+     --schedule="*/5 * * * *" \
+     --uri="${SERVICE_URL}/healthz" \
+     --http-method=GET
+   ```
+
+   リクエスト課金だけで済むため、常時起動より安く上がります。
+   ただしインスタンスが維持される保証はなく、あくまで経験則です。
+
+3. **常時 1 インスタンス** — 確実にコールドスタートを消したい場合の最終手段です。
+   `.env` に次を設定すると `deploy.sh` が反映します。
+
+   ```bash
+   CLOUD_RUN_MIN_INSTANCES=1
+   ```
+
+   **インスタンスベース課金**に切り替わり、リクエストが無くても課金され続けます。
+   実際の金額は[料金計算ツール](https://cloud.google.com/products/calculator)で確認してください。
+
+> `answerMs` が支配的だった場合、上記はどれも効きません。
+> 呼び出し側で「回答を生成中です」といった繋ぎの応答を返す設計を検討してください。
 
 ---
 

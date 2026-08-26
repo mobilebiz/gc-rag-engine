@@ -22,8 +22,16 @@ export function createApp() {
       });
     }
 
+    const startedAt = performance.now();
     try {
-      res.json(await search(query.trim()));
+      const result = await search(query.trim());
+      res.json(result);
+      // src/search.js の searchMs / answerMs と突き合わせると、
+      // アプリ側のオーバーヘッドがどれだけあるか分かる
+      logger.info('リクエスト完了', {
+        path: req.path,
+        requestMs: Math.round(performance.now() - startedAt),
+      });
     } catch (err) {
       next(err);
     }

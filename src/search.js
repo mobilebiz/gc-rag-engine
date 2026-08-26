@@ -18,16 +18,36 @@ const { SearchServiceClient, ConversationalSearchServiceClient } = v1;
 
 let clients = null;
 
+/**
+ * インスタンス上で最初に検索した 1 回だけ記録するコールドスタート情報。
+ * 読み出すと消えるので、2 回目以降のログには載らない。
+ */
+let coldStartInfo = null;
+
 /** クライアントは初回利用時に生成する (import 時に副作用を出さないため)。 */
 function getClients() {
   if (!clients) {
+    const startedAt = performance.now();
     const options = { apiEndpoint: apiHost() };
     clients = {
       search: new SearchServiceClient(options),
       conversational: new ConversationalSearchServiceClient(options),
     };
+    coldStartInfo = {
+      coldStart: true,
+      // クライアント生成にかかった時間
+      clientInitMs: Math.round(performance.now() - startedAt),
+      // プロセス起動から最初のリクエストが届くまで = コンテナ起動ぶんの目安
+      processUptimeMs: Math.round(process.uptime() * 1000),
+    };
   }
   return clients;
+}
+
+function takeColdStartInfo() {
+  const info = coldStartInfo;
+  coldStartInfo = null;
+  return info ?? {};
 }
 
 /**
@@ -59,6 +79,7 @@ function toReferences(results) {
  */
 export async function search(query) {
   const { search: searchClient, conversational: conversationalClient } = getClients();
+  const coldStart = takeColdStartInfo();
 
   const servingConfig = searchClient.projectLocationCollectionEngineServingConfigPath(
     config.projectNumber,
@@ -73,8 +94,9 @@ export async function search(query) {
     `projects/${config.projectNumber}/locations/${config.location}` +
     `/collections/${config.collectionId}/engines/${config.engineId}/sessions/-`;
 
-  logger.info('検索を実行します', { query });
+  logger.info('検索を実行します', { query, ...coldStart });
 
+  const searchStartedAt = performance.now();
   const [results, , response] = await searchClient.search(
     {
       servingConfig,
@@ -88,8 +110,9 @@ export async function search(query) {
     { autoPaginate: false }
   );
 
+  const searchMs = Math.round(performance.now() - searchStartedAt);
   const references = toReferences(results ?? []);
-  logger.debug('検索結果', { hits: results?.length ?? 0, references });
+  logger.debug('検索結果', { hits: results?.length ?? 0, searchMs, references });
 
   const answerRequest = {
     servingConfig,
@@ -115,12 +138,23 @@ export async function search(query) {
     logger.warn('SessionInfo が取得できなかったため、セッションなしで回答生成します', { query });
   }
 
+  const answerStartedAt = performance.now();
   const [answerResponse] = await conversationalClient.answerQuery(answerRequest);
+  const answerMs = Math.round(performance.now() - answerStartedAt);
 
   const answer = answerResponse.answer?.answerText ?? null;
   const relatedQuestions = answerResponse.relatedQuestions ?? [];
 
-  logger.info('回答を生成しました', { hasAnswer: Boolean(answer), related: relatedQuestions.length });
+  // searchMs と answerMs の内訳を見れば、遅さの原因がコールドスタートなのか
+  // 回答生成そのものなのかを切り分けられる
+  logger.info('回答を生成しました', {
+    hasAnswer: Boolean(answer),
+    related: relatedQuestions.length,
+    searchMs,
+    answerMs,
+    totalMs: searchMs + answerMs,
+    ...coldStart,
+  });
 
   return { answer, references, relatedQuestions };
 }
