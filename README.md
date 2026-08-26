@@ -507,6 +507,26 @@ curl -X POST http://localhost:8080/search \
 npm test
 ```
 
+### Postman / newman による API テスト
+
+デプロイした検索 API に対する疎通・正常系・異常系のテストを
+`postman/gc-rag-engine.postman_collection.json` に用意しています（8 リクエスト / 20 アサーション）。
+
+**Postman で使う場合** — コレクションを Import し、変数 `baseUrl` に Cloud Run の
+サービス URL（末尾のスラッシュなし）を設定して Run します。
+
+**CLI で使う場合** — Postman なしでも `newman` で実行できます。CI に組み込むならこちらです。
+
+```bash
+npx newman run postman/gc-rag-engine.postman_collection.json \
+  --env-var baseUrl="$(gcloud run services describe rag-engine-service \
+    --region "${CLOUD_RUN_REGION:-asia-northeast1}" --format='value(status.url)')"
+```
+
+`GET /healthz` の応答時間は検索を含まないため、ほぼコンテナ起動時間そのものです。
+`POST /search` との差を見れば、遅さがコールドスタート由来か回答生成由来かを切り分けられます
+（テストスクリプトが両方の値をコンソールに出力します）。
+
 ---
 
 ## トラブルシューティング

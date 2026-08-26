@@ -1,0 +1,353 @@
+{
+  "info": {
+    "name": "gc-rag-engine",
+    "description": "kintone FAQ を Gemini Enterprise Agent Platform で検索する RAG エンジンの API テスト。\n\n使い方:\n1. コレクション変数 `baseUrl` に Cloud Run のサービス URL を設定する\n   (例: https://rag-engine-service-xxxxxxxx-an.a.run.app)\n2. コレクション全体を Run する\n\nCLI から実行する場合:\n  npx newman run postman/gc-rag-engine.postman_collection.json \\\n    --env-var baseUrl=https://your-service-url",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "",
+      "type": "string",
+      "description": "Cloud Run のサービス URL (末尾のスラッシュなし)"
+    },
+    {
+      "key": "query",
+      "value": "解約方法を教えて",
+      "type": "string",
+      "description": "正常系で投げる質問"
+    }
+  ],
+  "item": [
+    {
+      "name": "疎通確認",
+      "item": [
+        {
+          "name": "GET /healthz",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/healthz",
+              "host": ["{{baseUrl}}"],
+              "path": ["healthz"]
+            },
+            "description": "ヘルスチェック。Cloud Scheduler による keep-warm もこのエンドポイントを叩く。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 が返る', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('status が ok', function () {",
+                  "    pm.expect(pm.response.json().status).to.eql('ok');",
+                  "});",
+                  "",
+                  "// このリクエストの応答時間はほぼコンテナ起動時間そのもの。",
+                  "// 検索を含まないので、コールドスタートの切り分けに使える。",
+                  "console.log('healthz responseTime:', pm.response.responseTime, 'ms');",
+                  "pm.collectionVariables.set('healthzMs', pm.response.responseTime);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/",
+              "host": ["{{baseUrl}}"],
+              "path": [""]
+            },
+            "description": "後方互換で残しているルート。プレーンテキストを返す。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 が返る', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "pm.test('起動メッセージを返す', function () {",
+                  "    pm.expect(pm.response.text()).to.include('RAG Engine Service is running');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "検索 (正常系)",
+      "item": [
+        {
+          "name": "POST /search",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"q\": \"{{query}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/search",
+              "host": ["{{baseUrl}}"],
+              "path": ["search"]
+            },
+            "description": "Function Calling / 音声応答システムからの本番想定リクエスト。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 が返る', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const body = pm.response.json();",
+                  "",
+                  "pm.test('answer が生成されている', function () {",
+                  "    pm.expect(",
+                  "        body.answer,",
+                  "        'answer が null です。アプリの LLM アドオン (SEARCH_ADD_ON_LLM) が有効か確認してください'",
+                  "    ).to.be.a('string');",
+                  "    pm.expect(body.answer.length).to.be.above(0);",
+                  "});",
+                  "",
+                  "pm.test('references が {title, link} の配列', function () {",
+                  "    pm.expect(body.references).to.be.an('array');",
+                  "    body.references.forEach(function (ref) {",
+                  "        pm.expect(ref).to.have.property('title');",
+                  "        pm.expect(ref).to.have.property('link');",
+                  "    });",
+                  "});",
+                  "",
+                  "pm.test('references は ANSWER_MAX_REFERENCES 以内', function () {",
+                  "    pm.expect(body.references.length).to.be.at.most(3);",
+                  "});",
+                  "",
+                  "pm.test('relatedQuestions が配列', function () {",
+                  "    pm.expect(body.relatedQuestions).to.be.an('array');",
+                  "});",
+                  "",
+                  "// SEARCH_PREAMBLE で 200 文字以内を指示しているが、LLM は厳密には従わない。",
+                  "// 明らかに逸脱した場合だけ落とすため、上限は緩めに取っている。",
+                  "pm.test('回答が極端に長くない (200 文字指示の目安)', function () {",
+                  "    pm.expect(body.answer.length).to.be.at.most(400);",
+                  "});",
+                  "",
+                  "// コールドスタートかどうかの切り分けに使う。",
+                  "// healthz との差が検索 + 回答生成の実時間にほぼ相当する。",
+                  "const healthzMs = Number(pm.collectionVariables.get('healthzMs') || 0);",
+                  "console.log('search responseTime:', pm.response.responseTime, 'ms',",
+                  "            '(healthz との差:', pm.response.responseTime - healthzMs, 'ms)');",
+                  "",
+                  "pm.test('タイムアウトしていない', function () {",
+                  "    pm.expect(pm.response.responseTime).to.be.below(30000);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /search?q=",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/search?q={{query}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["search"],
+              "query": [{ "key": "q", "value": "{{query}}" }]
+            },
+            "description": "GET でも POST と同じ結果を返すことの確認。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('200 が返る', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "",
+                  "const body = pm.response.json();",
+                  "",
+                  "pm.test('POST と同じ形のレスポンス', function () {",
+                  "    pm.expect(body).to.have.property('answer');",
+                  "    pm.expect(body).to.have.property('references');",
+                  "    pm.expect(body).to.have.property('relatedQuestions');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "検索 (異常系)",
+      "item": [
+        {
+          "name": "POST /search (q なし)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/search",
+              "host": ["{{baseUrl}}"],
+              "path": ["search"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 が返る', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('error が Bad Request', function () {",
+                  "    pm.expect(pm.response.json().error).to.eql('Bad Request');",
+                  "});",
+                  "",
+                  "pm.test('body 用のメッセージが返る', function () {",
+                  "    pm.expect(pm.response.json().details).to.include('Body parameter');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "POST /search (q が空白のみ)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"q\": \"   \"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{baseUrl}}/search",
+              "host": ["{{baseUrl}}"],
+              "path": ["search"]
+            },
+            "description": "空白だけの質問を検索に流さないことの確認。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 が返る', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /search (q なし)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/search",
+              "host": ["{{baseUrl}}"],
+              "path": ["search"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('400 が返る', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "",
+                  "pm.test('query 用のメッセージが返る', function () {",
+                  "    pm.expect(pm.response.json().details).to.include('Query parameter');",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /not-found",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/not-found",
+              "host": ["{{baseUrl}}"],
+              "path": ["not-found"]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('404 が返る', function () {",
+                  "    pm.response.to.have.status(404);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.collectionVariables.get('baseUrl')) {",
+          "    throw new Error('コレクション変数 baseUrl に Cloud Run のサービス URL を設定してください');",
+          "}"
+        ]
+      }
+    }
+  ]
+}
