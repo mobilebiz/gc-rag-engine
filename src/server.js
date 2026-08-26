@@ -40,7 +40,14 @@ export function createApp() {
   app.get('/search', handleSearch);
   app.post('/search', handleSearch);
 
-  app.get('/healthz', (req, res) => res.json({ status: 'ok' }));
+  // ヘルスチェックは /health を正とする。
+  // Cloud Run の *.run.app では **/healthz へのリクエストがコンテナに到達しない**
+  // (上流のインフラが 404 を返し、x-cloud-trace-context も付かない)。
+  // /healthz/ (末尾スラッシュ付き) は到達するが紛らわしいので、
+  // 到達が確認できている /health を使う。/healthz は互換のために残す。
+  const health = (req, res) => res.json({ status: 'ok' });
+  app.get('/health', health);
+  app.get('/healthz', health);
 
   // 既存の疎通確認用エンドポイント (後方互換のため維持)
   app.get('/', (req, res) => res.send('RAG Engine Service is running.'));

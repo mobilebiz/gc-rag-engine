@@ -23,14 +23,18 @@
       "name": "疎通確認",
       "item": [
         {
-          "name": "GET /healthz",
+          "name": "GET /health",
           "request": {
             "method": "GET",
             "header": [],
             "url": {
-              "raw": "{{baseUrl}}/healthz",
-              "host": ["{{baseUrl}}"],
-              "path": ["healthz"]
+              "raw": "{{baseUrl}}/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health"
+              ]
             },
             "description": "ヘルスチェック。Cloud Scheduler による keep-warm もこのエンドポイントを叩く。"
           },
@@ -50,8 +54,8 @@
                   "",
                   "// このリクエストの応答時間はほぼコンテナ起動時間そのもの。",
                   "// 検索を含まないので、コールドスタートの切り分けに使える。",
-                  "console.log('healthz responseTime:', pm.response.responseTime, 'ms');",
-                  "pm.collectionVariables.set('healthzMs', pm.response.responseTime);"
+                  "console.log('health responseTime:', pm.response.responseTime, 'ms');",
+                  "pm.collectionVariables.set('healthMs', pm.response.responseTime);"
                 ]
               }
             }
@@ -64,8 +68,12 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/",
-              "host": ["{{baseUrl}}"],
-              "path": [""]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                ""
+              ]
             },
             "description": "後方互換で残しているルート。プレーンテキストを返す。"
           },
@@ -97,17 +105,28 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"q\": \"{{query}}\"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": {
               "raw": "{{baseUrl}}/search",
-              "host": ["{{baseUrl}}"],
-              "path": ["search"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "search"
+              ]
             },
             "description": "Function Calling / 音声応答システムからの本番想定リクエスト。"
           },
@@ -154,10 +173,10 @@
                   "});",
                   "",
                   "// コールドスタートかどうかの切り分けに使う。",
-                  "// healthz との差が検索 + 回答生成の実時間にほぼ相当する。",
-                  "const healthzMs = Number(pm.collectionVariables.get('healthzMs') || 0);",
+                  "// health との差が検索 + 回答生成の実時間にほぼ相当する。",
+                  "const healthMs = Number(pm.collectionVariables.get('healthMs') || 0);",
                   "console.log('search responseTime:', pm.response.responseTime, 'ms',",
-                  "            '(healthz との差:', pm.response.responseTime - healthzMs, 'ms)');",
+                  "            '(health との差:', pm.response.responseTime - healthMs, 'ms)');",
                   "",
                   "pm.test('タイムアウトしていない', function () {",
                   "    pm.expect(pm.response.responseTime).to.be.below(30000);",
@@ -174,9 +193,18 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/search?q={{query}}",
-              "host": ["{{baseUrl}}"],
-              "path": ["search"],
-              "query": [{ "key": "q", "value": "{{query}}" }]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "{{query}}"
+                }
+              ]
             },
             "description": "GET でも POST と同じ結果を返すことの確認。"
           },
@@ -212,17 +240,28 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": {
               "raw": "{{baseUrl}}/search",
-              "host": ["{{baseUrl}}"],
-              "path": ["search"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "search"
+              ]
             }
           },
           "event": [
@@ -252,17 +291,28 @@
           "request": {
             "method": "POST",
             "header": [
-              { "key": "Content-Type", "value": "application/json" }
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
             ],
             "body": {
               "mode": "raw",
               "raw": "{\n  \"q\": \"   \"\n}",
-              "options": { "raw": { "language": "json" } }
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
             },
             "url": {
               "raw": "{{baseUrl}}/search",
-              "host": ["{{baseUrl}}"],
-              "path": ["search"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "search"
+              ]
             },
             "description": "空白だけの質問を検索に流さないことの確認。"
           },
@@ -287,8 +337,12 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/search",
-              "host": ["{{baseUrl}}"],
-              "path": ["search"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "search"
+              ]
             }
           },
           "event": [
@@ -316,8 +370,12 @@
             "header": [],
             "url": {
               "raw": "{{baseUrl}}/not-found",
-              "host": ["{{baseUrl}}"],
-              "path": ["not-found"]
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "not-found"
+              ]
             }
           },
           "event": [
@@ -343,8 +401,10 @@
       "script": {
         "type": "text/javascript",
         "exec": [
-          "if (!pm.collectionVariables.get('baseUrl')) {",
-          "    throw new Error('コレクション変数 baseUrl に Cloud Run のサービス URL を設定してください');",
+          "// --env-var は environment スコープに入るため、全スコープを横断して解決する",
+          "// pm.variables を使う (pm.collectionVariables では newman 実行時に見えない)",
+          "if (!pm.variables.get('baseUrl')) {",
+          "    throw new Error('変数 baseUrl に Cloud Run のサービス URL を設定してください');",
           "}"
         ]
       }

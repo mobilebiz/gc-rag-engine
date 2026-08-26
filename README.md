@@ -523,7 +523,7 @@ npx newman run postman/gc-rag-engine.postman_collection.json \
     --region "${CLOUD_RUN_REGION:-asia-northeast1}" --format='value(status.url)')"
 ```
 
-`GET /healthz` の応答時間は検索を含まないため、ほぼコンテナ起動時間そのものです。
+`GET /health` の応答時間は検索を含まないため、ほぼコンテナ起動時間そのものです。
 `POST /search` との差を見れば、遅さがコールドスタート由来か回答生成由来かを切り分けられます
 （テストスクリプトが両方の値をコンソールに出力します）。
 
@@ -646,7 +646,7 @@ gcloud run services logs read rag-engine-service \
    Node.js では起動時間が 3 割ほど短くなり、追加費用は起動中のわずかな分だけです。
 
 2. **定期的にウォームに保つ** — 検索頻度が低い場合はこれが費用対効果に優れます。
-   Cloud Scheduler から `/healthz` を叩いてインスタンスを維持します。
+   Cloud Scheduler から `/health` を叩いてインスタンスを維持します。
 
    ```bash
    gcloud services enable cloudscheduler.googleapis.com
@@ -657,7 +657,7 @@ gcloud run services logs read rag-engine-service \
    gcloud scheduler jobs create http rag-engine-keepalive \
      --location="${CLOUD_RUN_REGION:-asia-northeast1}" \
      --schedule="*/5 * * * *" \
-     --uri="${SERVICE_URL}/healthz" \
+     --uri="${SERVICE_URL}/health" \
      --http-method=GET
    ```
 
@@ -725,11 +725,19 @@ curl -X POST https://[YOUR_SERVICE_URL]/search \
   -d '{"q": "解約方法を教えて"}'
 ```
 
-### `GET /healthz`
+### `GET /health`
 
 ```json
 { "status": "ok" }
 ```
+
+> **`/healthz` は使わないでください**
+> Cloud Run の `*.run.app` ドメインでは、`/healthz` へのリクエストが
+> **コンテナに到達せず上流のインフラが 404 を返します**
+> （レスポンスに `x-cloud-trace-context` も `server: Google Frontend` も付きません）。
+> `/healthz/`（末尾スラッシュ付き）なら到達しますが紛らわしいため、
+> アプリ側は `/health` を正としています（`/healthz` も互換のため登録済み）。
+> 監視や keep-warm の宛先には必ず `/health` を指定してください。
 
 ---
 
