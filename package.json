@@ -1,23 +1,28 @@
 {
   "name": "gc-rag-engine",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "type": "module",
-  "description": "Convert FAQ CSV to Vertex AI Application",
+  "description": "kintone FAQ を Gemini Enterprise Agent Platform に取り込み、検索・回答生成 API を提供する RAG エンジン",
   "main": "index.js",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node index.js",
-    "search": "node query.js",
-    "sync": "node run_pipeline.js",
-    "sync:full": "node run_pipeline.js --full",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "search": "node bin/search.js",
+    "sync": "node bin/sync.js",
+    "sync:full": "node bin/sync.js --full",
+    "sync:resume": "node bin/sync.js --resume",
+    "test": "node --test"
   },
   "author": "Katsumi Takahashi",
   "license": "ISC",
   "dependencies": {
-    "@google-cloud/discoveryengine": "^2.5.2",
-    "@google-cloud/storage": "^7.19.0",
-    "@google/generative-ai": "^0.24.1",
-    "dotenv": "^17.2.3",
-    "express": "^5.2.1"
+    "@google-cloud/discoveryengine": "^3.0.0",
+    "@google-cloud/storage": "^8.0.1",
+    "@google/genai": "^2.19.0",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "google-auth-library": "^11.0.2"
   }
 }
