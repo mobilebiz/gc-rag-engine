@@ -75,4 +75,6 @@ gcloud run deploy "${SERVICE_NAME}" \
   --region "${REGION}" \
   --service-account="${SERVICE_ACCOUNT}" \
   --allow-unauthenticated \
+  --cpu-boost \
+  --min-instances="${CLOUD_RUN_MIN_INSTANCES:-0}" \
   --set-env-vars="${ENV_VARS_ARG}"
