@@ -65,6 +65,41 @@ function getField(doc, field) {
   return value ?? null;
 }
 
+/**
+ * answerQuery のレスポンスから参照元を組み立てる。
+ *
+ * Answer.references はドキュメント単位ではなく**チャンク単位**で返るため、
+ * 同じファイルが複数回並ぶ。URI で重複排除してから件数を絞る。
+ *
+ * @param {object[]} references Answer.references
+ * @param {number} max
+ * @returns {{title: string, link: string}[]}
+ */
+export function toAnswerReferences(references, max = config.search.maxReferences) {
+  const seen = new Set();
+  const out = [];
+
+  for (const ref of references ?? []) {
+    // 非構造化ドキュメント / チャンク / 構造化ドキュメントのいずれかに入る
+    const info =
+      ref?.unstructuredDocumentInfo ??
+      ref?.chunkInfo?.documentMetadata ??
+      ref?.structuredDocumentInfo;
+    if (!info) continue;
+
+    const link = info.uri ?? '';
+    // URI が無いものは重複判定できないのでタイトルで代用する
+    const key = link || info.title || '';
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+
+    out.push({ title: info.title || 'No Title', link });
+    if (out.length >= max) break;
+  }
+
+  return out;
+}
+
 function toReferences(results) {
   return results.slice(0, config.search.maxReferences).map((item) => ({
     title: getField(item.document, 'title') ?? 'No Title',
@@ -78,6 +113,74 @@ function toReferences(results) {
  * @returns {Promise<{answer: string|null, references: {title: string, link: string}[], relatedQuestions: string[]}>}
  */
 export async function search(query) {
+  return config.search.singleRoundTrip ? searchSingleRoundTrip(query) : searchTwoRoundTrips(query);
+}
+
+/** answerQuery が根拠にする回答生成の設定。両方の経路で共通。 */
+function answerGenerationSpec() {
+  const spec = {
+    ignoreAdversarialQuery: true,
+    ignoreNonAnswerSeekingQuery: false,
+    ignoreLowRelevantContent: true,
+    includeCitations: true,
+    modelSpec: { modelVersion: 'stable' },
+  };
+  // SEARCH_PREAMBLE 未設定ならモデルの既定の回答スタイルに任せる
+  if (config.search.preamble) spec.promptSpec = { preamble: config.search.preamble };
+  return spec;
+}
+
+function servingConfigPath(client) {
+  return client.projectLocationCollectionEngineServingConfigPath(
+    config.projectNumber,
+    config.location,
+    config.collectionId,
+    config.engineId,
+    config.servingConfigId
+  );
+}
+
+/**
+ * answerQuery だけで完結させる 1 往復の経路。
+ * answerQuery は session を渡さなければ自前で検索するため、事前の search を省ける。
+ */
+async function searchSingleRoundTrip(query) {
+  const { search: searchClient, conversational: conversationalClient } = getClients();
+  const coldStart = takeColdStartInfo();
+  const servingConfig = servingConfigPath(searchClient);
+
+  logger.info('検索を実行します', { query, mode: 'single', ...coldStart });
+
+  const startedAt = performance.now();
+  const [answerResponse] = await conversationalClient.answerQuery({
+    servingConfig,
+    query: { text: query },
+    relatedQuestionsSpec: { enable: true },
+    searchSpec: { searchParams: { maxReturnResults: config.search.pageSize } },
+    answerGenerationSpec: answerGenerationSpec(),
+  });
+  const answerMs = Math.round(performance.now() - startedAt);
+
+  const answer = answerResponse.answer?.answerText ?? null;
+  const references = toAnswerReferences(answerResponse.answer?.references);
+  const relatedQuestions = answerResponse.relatedQuestions ?? [];
+
+  logger.info('回答を生成しました', {
+    mode: 'single',
+    hasAnswer: Boolean(answer),
+    related: relatedQuestions.length,
+    references: references.length,
+    searchMs: 0,
+    answerMs,
+    totalMs: answerMs,
+    ...coldStart,
+  });
+
+  return { answer, references, relatedQuestions };
+}
+
+/** 検索とセッションを挟む従来の 2 往復の経路。 */
+async function searchTwoRoundTrips(query) {
   const { search: searchClient, conversational: conversationalClient } = getClients();
   const coldStart = takeColdStartInfo();
 
@@ -94,7 +197,7 @@ export async function search(query) {
     `projects/${config.projectNumber}/locations/${config.location}` +
     `/collections/${config.collectionId}/engines/${config.engineId}/sessions/-`;
 
-  logger.info('検索を実行します', { query, ...coldStart });
+  logger.info('検索を実行します', { query, mode: 'two-step', ...coldStart });
 
   const searchStartedAt = performance.now();
   const [results, , response] = await searchClient.search(
@@ -118,19 +221,8 @@ export async function search(query) {
     servingConfig,
     query: { text: query },
     relatedQuestionsSpec: { enable: true },
-    answerGenerationSpec: {
-      ignoreAdversarialQuery: true,
-      ignoreNonAnswerSeekingQuery: false,
-      ignoreLowRelevantContent: true,
-      includeCitations: true,
-      modelSpec: { modelVersion: 'stable' },
-    },
+    answerGenerationSpec: answerGenerationSpec(),
   };
-
-  // SEARCH_PREAMBLE 未設定ならモデルの既定の回答スタイルに任せる
-  if (config.search.preamble) {
-    answerRequest.answerGenerationSpec.promptSpec = { preamble: config.search.preamble };
-  }
 
   // セッションが払い出せた場合は検索結果と紐付けて回答生成する。
   // 払い出せない場合 (ヒット 0 件など) でも answerQuery 単体で動作するのでフォールバックする。
@@ -152,6 +244,7 @@ export async function search(query) {
   // searchMs と answerMs の内訳を見れば、遅さの原因がコールドスタートなのか
   // 回答生成そのものなのかを切り分けられる
   logger.info('回答を生成しました', {
+    mode: 'two-step',
     hasAnswer: Boolean(answer),
     related: relatedQuestions.length,
     searchMs,

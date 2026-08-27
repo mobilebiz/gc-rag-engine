@@ -79,6 +79,11 @@ export const config = {
     // スモークテストのクエリ。FAQ の内容に依存するため既定値は持たない。
     // 未設定ならスモークテストはスキップされる。
     smokeTestQuery: str(process.env.SMOKE_TEST_QUERY),
+    // true にすると search を省き answerQuery だけで回答する (1 往復)。
+    // 実測で中央値 4.2 秒 → 2.6 秒。ただし answerQuery 内部の検索は
+    // queryExpansion / spellCorrection を伴わないため、想定質問から離れた
+    // 言い回しでは根拠が弱くなり得る。既定は従来どおりの 2 往復。
+    singleRoundTrip: str(process.env.SEARCH_SINGLE_ROUNDTRIP).toLowerCase() === 'true',
   },
 
   // --- 検索 API の認証 ---
