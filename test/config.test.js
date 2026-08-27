@@ -55,3 +55,33 @@ test('sync モードは不足している変数をまとめて報告する', () 
 test('未知のモードは ConfigError になる', () => {
   assert.throws(() => assertConfig('unknown'), ConfigError);
 });
+
+test('assertSteps は実行するステップの分だけ要求する', async () => {
+  const { assertSteps } = await import('../src/config.js');
+  // optimize だけなら GCS やデータストアは不要 (serve 用の値は設定済み)
+  assert.throws(
+    () => assertSteps(['optimize']),
+    (error) => {
+      assert.match(error.message, /GEMINI_API_KEY|KINTONE_DOMAIN/);
+      assert.doesNotMatch(error.message, /GCS_BUCKET|DATA_STORE_ID/);
+      return true;
+    }
+  );
+});
+
+test('assertSteps は同じ変数を重複して報告しない', async () => {
+  const { assertSteps } = await import('../src/config.js');
+  assert.throws(
+    () => assertSteps(['upload', 'import']),
+    (error) => {
+      // GCS_BUCKET は upload と import の両方が要求する
+      assert.equal(error.message.match(/GCS_BUCKET/g).length, 1);
+      return true;
+    }
+  );
+});
+
+test('assertSteps は未知のステップを拒否する', async () => {
+  const { assertSteps } = await import('../src/config.js');
+  assert.throws(() => assertSteps(['nope']), ConfigError);
+});

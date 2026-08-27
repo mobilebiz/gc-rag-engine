@@ -8,7 +8,7 @@
  *   npm run sync -- --skip-import       # 個別ステップのスキップ
  */
 import { parseArgs } from 'node:util';
-import { assertConfig, ConfigError } from '../src/config.js';
+import { assertSteps, config, ConfigError } from '../src/config.js';
 import { logger } from '../src/logger.js';
 import { runPipeline } from '../src/pipeline.js';
 
@@ -21,6 +21,7 @@ const USAGE = `
   --skip-upload     GCS アップロードをスキップ
   --skip-import     データストア再取り込みをスキップ
   --skip-smoke      スモークテストをスキップ
+  --allow-partial   一部の最適化が失敗しても公開まで進める
   -h, --help        このヘルプを表示
 `;
 
@@ -34,6 +35,7 @@ try {
       'skip-upload': { type: 'boolean', default: false },
       'skip-import': { type: 'boolean', default: false },
       'skip-smoke': { type: 'boolean', default: false },
+      'allow-partial': { type: 'boolean', default: false },
       help: { type: 'boolean', short: 'h', default: false },
     },
     strict: true,
@@ -56,13 +58,19 @@ const options = {
   skipUpload: values['skip-upload'],
   skipImport: values['skip-import'],
   skipSmoke: values['skip-smoke'],
+  allowPartial: values['allow-partial'],
 };
 
-// kintone / Gemini を使わない実行では、それらの環境変数を必須にしない
-const mode = options.resume || options.skipOptimize ? 'import' : 'sync';
+// 実際に走るステップだけを検証する。スキップしたステップの環境変数は要求しない。
+const steps = [];
+if (!options.resume && !options.skipOptimize) steps.push('optimize');
+if (!options.resume && !options.skipUpload) steps.push('upload');
+if (options.resume || !options.skipImport) steps.push('import');
+// スモークテストはクエリ未設定なら実行されない
+if (!options.skipSmoke && config.search.smokeTestQuery) steps.push('search');
 
 try {
-  assertConfig(mode);
+  assertSteps(steps, `実行するステップ: ${steps.join(', ') || 'なし'}`);
 } catch (error) {
   if (error instanceof ConfigError) {
     console.error(error.message);

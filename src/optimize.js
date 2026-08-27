@@ -136,7 +136,7 @@ export function findOrphanDocs(existingFilenames, validFilenames) {
 /**
  * kintone から FAQ を取得し、差分のみ Gemini で最適化してファイル出力する。
  * @param {{full?: boolean}} [options] full=true で全件再生成
- * @returns {Promise<{added: string[], updated: string[], removed: string[], failed: string[], unchanged: number, files: string[]}>}
+ * @returns {Promise<{added: string[], updated: string[], removed: string[], failed: string[], unchanged: number, sourceCount: number, files: string[]}>}
  */
 export async function optimizeAll({ full = false } = {}) {
   ensureOutputDir();
@@ -210,6 +210,8 @@ export async function optimizeAll({ full = false } = {}) {
     removed,
     failed,
     unchanged: records.length - targets.length,
+    // kintone 側の件数。0 なら「全件削除された」と確定できる
+    sourceCount: records.length,
     files: records.map((r) => docFilename(r.id)),
   };
 }

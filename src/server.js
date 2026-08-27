@@ -2,6 +2,7 @@
  * 検索 API を提供する Express アプリ。
  * Function Calling などの外部連携から呼び出される想定。
  */
+import { STATUS_CODES } from 'node:http';
 import express from 'express';
 import { config } from './config.js';
 import { logger } from './logger.js';
@@ -53,8 +54,20 @@ export function createApp() {
   app.get('/', (req, res) => res.send('RAG Engine Service is running.'));
 
   app.use((err, req, res, _next) => {
-    logger.error('リクエスト処理に失敗しました', { path: req.path, error: err?.message });
-    res.status(500).json({ error: 'Internal Server Error', details: err?.message });
+    // express.json() は不正な JSON やサイズ超過に 4xx を付けて渡してくる。
+    // これを 500 に丸めるとクライアントの入力ミスがサーバ障害として扱われ、
+    // 呼び出し側の不要なリトライやアラートを誘発する。
+    const status = Number(err?.status ?? err?.statusCode);
+    const isClientError = Number.isInteger(status) && status >= 400 && status < 500;
+
+    const fields = { path: req.path, status: isClientError ? status : 500, error: err?.message };
+    if (isClientError) logger.warn('不正なリクエストを受け取りました', fields);
+    else logger.error('リクエスト処理に失敗しました', fields);
+
+    res.status(isClientError ? status : 500).json({
+      error: isClientError ? (STATUS_CODES[status] ?? 'Bad Request') : 'Internal Server Error',
+      details: err?.message,
+    });
   });
 
   return app;

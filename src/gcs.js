@@ -25,9 +25,12 @@ export function findOrphanObjects(remoteNames, localNames) {
 
 /**
  * optimized_docs/ の .txt をすべてアップロードし、孤立オブジェクトを削除する。
+ * @param {{sourceConfirmedEmpty?: boolean}} [options]
+ *   sourceConfirmedEmpty=true は「データソースが 0 件であると確認できた」ことを表す。
+ *   このときだけローカルが空でもリモートを空にしてよい。
  * @returns {Promise<{uploaded: number, deleted: number, uri: string}>}
  */
-export async function syncToGcs() {
+export async function syncToGcs({ sourceConfirmedEmpty = false } = {}) {
   const { bucket: bucketName, prefix } = config.gcs;
   const storage = new Storage({ projectId: config.projectId || undefined });
   const bucket = storage.bucket(bucketName);
@@ -51,20 +54,23 @@ export async function syncToGcs() {
   );
 
   const localNames = new Set(files.map((f) => `${prefixPath}${f}`));
-  const orphans =
-    // ローカルが空のときにバケットを全消しするのは事故なので止める
-    // (reconciliationMode: FULL でデータストアまで空になる)
-    files.length === 0
-      ? []
-      : findOrphanObjects(
-          existing.map((o) => o.name),
-          localNames
-        );
+  // ローカルが空のままバケットを全消しすると、reconciliationMode: FULL で
+  // データストアまで空になる。データソースが本当に 0 件だと確認できた場合だけ許可する。
+  const skipDeletion = files.length === 0 && !sourceConfirmedEmpty;
+  const orphans = skipDeletion
+    ? []
+    : findOrphanObjects(
+        existing.map((o) => o.name),
+        localNames
+      );
 
-  if (files.length === 0 && existing.length > 0) {
+  if (skipDeletion && existing.length > 0) {
     logger.warn(
-      `${outputDir}/ が空です。バケット上の ${existing.length} 件は削除せず残します。`
+      `${outputDir}/ が空ですが、データソースが 0 件だと確認できていないため` +
+        ` バケット上の ${existing.length} 件は削除しません。`
     );
+  } else if (files.length === 0 && sourceConfirmedEmpty) {
+    logger.warn('データソースが 0 件のため、バケット上のドキュメントをすべて削除します。');
   }
 
   for (const name of orphans) {

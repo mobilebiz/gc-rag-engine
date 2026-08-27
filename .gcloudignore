@@ -12,6 +12,9 @@ node_modules/
 .env.*
 !.env.sample
 
+# 旧構成の名残。移行途中のチェックアウトに残っていても取り込まない
+faq_data.csv
+
 # 同期パイプラインの生成物・状態ファイル (検索 API の実行には不要)
 optimized_docs/
 .optimize_state.json
