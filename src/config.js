@@ -26,9 +26,6 @@ const int = (value, fallback) => {
   return Number.isFinite(n) ? n : fallback;
 };
 
-const DEFAULT_PREAMBLE =
-  '音声での返答を想定するため、なるべく丁寧調で、かつ全体を200文字以内にまとめて回答してください。';
-
 export const config = {
   // --- Google Cloud ---
   projectId: str(process.env.PROJECT_ID),
@@ -75,8 +72,12 @@ export const config = {
   search: {
     pageSize: Math.max(1, int(process.env.SEARCH_PAGE_SIZE, 10)),
     maxReferences: Math.max(1, int(process.env.ANSWER_MAX_REFERENCES, 3)),
-    preamble: str(process.env.SEARCH_PREAMBLE, DEFAULT_PREAMBLE),
-    smokeTestQuery: str(process.env.SMOKE_TEST_QUERY, '解約方法を教えて'),
+    // 回答生成のプロンプト前置き。用途に依存するため既定値は持たない。
+    // 空のままならモデルの既定の回答スタイルになる。
+    preamble: str(process.env.SEARCH_PREAMBLE),
+    // スモークテストのクエリ。FAQ の内容に依存するため既定値は持たない。
+    // 未設定ならスモークテストはスキップされる。
+    smokeTestQuery: str(process.env.SMOKE_TEST_QUERY),
   },
 
   // --- ローカルファイル ---

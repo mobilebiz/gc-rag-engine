@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "gc-rag-engine",
-    "description": "kintone FAQ を Gemini Enterprise Agent Platform で検索する RAG エンジンの API テスト。\n\n使い方:\n1. コレクション変数 `baseUrl` に Cloud Run のサービス URL を設定する\n   (例: https://rag-engine-service-xxxxxxxx-an.a.run.app)\n2. コレクション全体を Run する\n\nCLI から実行する場合:\n  npx newman run postman/gc-rag-engine.postman_collection.json \\\n    --env-var baseUrl=https://your-service-url",
+    "description": "kintone FAQ を Gemini Enterprise Agent Platform で検索する RAG エンジンの API テスト。\n\n使い方:\n1. 変数 `baseUrl` に Cloud Run のサービス URL を設定する\n   (例: https://rag-engine-service-xxxxxxxx-an.a.run.app)\n2. 変数 `query` に FAQ の内容に合った質問を設定する\n3. コレクション全体を Run する\n\nCLI から実行する場合:\n  npx newman run postman/gc-rag-engine.postman_collection.json \\\n    --env-var baseUrl=https://your-service-url \\\n    --env-var query='<検索したい質問>'",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -13,9 +13,9 @@
     },
     {
       "key": "query",
-      "value": "解約方法を教えて",
+      "value": "",
       "type": "string",
-      "description": "正常系で投げる質問"
+      "description": "正常系で投げる質問。FAQ の内容に合わせて設定してください"
     }
   ],
   "item": [
@@ -403,8 +403,10 @@
         "exec": [
           "// --env-var は environment スコープに入るため、全スコープを横断して解決する",
           "// pm.variables を使う (pm.collectionVariables では newman 実行時に見えない)",
-          "if (!pm.variables.get('baseUrl')) {",
-          "    throw new Error('変数 baseUrl に Cloud Run のサービス URL を設定してください');",
+          "for (const name of ['baseUrl', 'query']) {",
+          "    if (!pm.variables.get(name)) {",
+          "        throw new Error(`変数 ${name} を設定してください`);",
+          "    }",
           "}"
         ]
       }

@@ -124,9 +124,13 @@ export async function search(query) {
       ignoreLowRelevantContent: true,
       includeCitations: true,
       modelSpec: { modelVersion: 'stable' },
-      promptSpec: { preamble: config.search.preamble },
     },
   };
+
+  // SEARCH_PREAMBLE 未設定ならモデルの既定の回答スタイルに任せる
+  if (config.search.preamble) {
+    answerRequest.answerGenerationSpec.promptSpec = { preamble: config.search.preamble };
+  }
 
   // セッションが払い出せた場合は検索結果と紐付けて回答生成する。
   // 払い出せない場合 (ヒット 0 件など) でも answerQuery 単体で動作するのでフォールバックする。

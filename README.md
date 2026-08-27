@@ -97,10 +97,10 @@ cp .env.sample .env
 | `KINTONE_GUEST_SPACE_ID` | | ゲストスペース配下のアプリの場合のみ |
 | `KINTONE_QUESTION_FIELD` | | 質問のフィールドコード（既定 `question`） |
 | `KINTONE_ANSWER_FIELD` | | 回答のフィールドコード（既定 `answer`） |
-| `SEARCH_PREAMBLE` | | 回答生成のプロンプト前置き。既定は「音声での返答を想定…200文字以内」 |
+| `SEARCH_PREAMBLE` | | 回答生成のプロンプト前置き。未設定ならモデル既定の回答スタイル |
 | `ANSWER_MAX_REFERENCES` | | レスポンスに含める参照数（既定 `3`） |
 | `SEARCH_PAGE_SIZE` | | 検索の取得件数（既定 `10`） |
-| `SMOKE_TEST_QUERY` | | パイプライン最後の疎通確認クエリ |
+| `SMOKE_TEST_QUERY` | | パイプライン最後の疎通確認クエリ。未設定ならスキップ |
 | `LOG_LEVEL` | | `debug` / `info` / `warn` / `error`（既定 `info`） |
 | `PORT` | | サーバの待ち受けポート（既定 `8080`。Cloud Run が自動設定） |
 | `CLOUD_RUN_SERVICE` | | デプロイ先サービス名（既定 `rag-engine-service`） |
@@ -495,13 +495,13 @@ npm run sync -- --skip-upload --skip-import --skip-smoke
 
 ```bash
 # CLI から検索
-npm run search -- "解約方法について教えて下さい"
+npm run search -- "<検索したい質問>"
 
 # ローカルでサーバ起動
 npm start
 curl -X POST http://localhost:8080/search \
   -H 'Content-Type: application/json' \
-  -d '{"q": "解約方法を教えて"}'
+  -d '{"q": "<検索したい質問>"}'
 
 # 単体テスト
 npm test
@@ -520,7 +520,8 @@ npm test
 ```bash
 npx newman run postman/gc-rag-engine.postman_collection.json \
   --env-var baseUrl="$(gcloud run services describe rag-engine-service \
-    --region "${CLOUD_RUN_REGION:-asia-northeast1}" --format='value(status.url)')"
+    --region "${CLOUD_RUN_REGION:-asia-northeast1}" --format='value(status.url)')" \
+  --env-var query='<検索したい質問>'
 ```
 
 `GET /health` の応答時間は検索を含まないため、ほぼコンテナ起動時間そのものです。
@@ -722,7 +723,7 @@ GET の場合は `/search?q=...` です。
 ```bash
 curl -X POST https://[YOUR_SERVICE_URL]/search \
   -H "Content-Type: application/json" \
-  -d '{"q": "解約方法を教えて"}'
+  -d '{"q": "<検索したい質問>"}'
 ```
 
 ### `GET /health`
