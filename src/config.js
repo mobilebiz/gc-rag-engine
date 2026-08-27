@@ -102,48 +102,75 @@ export function apiHost(location = config.location) {
     : `${location}-discoveryengine.googleapis.com`;
 }
 
-/** モードごとの必須設定 (表示名は .env のキー名に合わせる)。 */
-const SERVE_REQUIREMENTS = [
-  ['PROJECT_NUMBER', () => config.projectNumber],
-  ['AI_APPLICATION_ID', () => config.engineId],
-];
-
-const IMPORT_REQUIREMENTS = [
-  ...SERVE_REQUIREMENTS,
-  ['DATA_STORE_ID', () => config.dataStoreId],
-  ['GCS_BUCKET', () => config.gcs.bucket],
-];
-
-const REQUIREMENTS = {
-  // 検索 API を動かすだけ (Cloud Run / npm run search)
-  serve: SERVE_REQUIREMENTS,
-  // GCS アップロードとデータストア取り込みまで (--resume / --skip-optimize)
-  import: IMPORT_REQUIREMENTS,
-  // kintone 取得と Gemini 最適化を含むフル同期
-  sync: [
-    ...IMPORT_REQUIREMENTS,
+/**
+ * 実行ステップごとの必須設定 (表示名は .env のキー名に合わせる)。
+ *
+ * モード単位ではなくステップ単位で持つ。スキップしたステップの環境変数まで
+ * 要求すると、ローカル生成だけしたい場合に GCS やデータストアの設定を
+ * 強いることになるため。
+ */
+const STEP_REQUIREMENTS = {
+  // kintone 取得と Gemini 最適化
+  optimize: [
     ['GEMINI_API_KEY', () => config.gemini.apiKey],
     ['KINTONE_DOMAIN', () => config.kintone.domain],
     ['KINTONE_APP_ID', () => config.kintone.appId],
     ['KINTONE_API_TOKEN', () => config.kintone.apiToken],
   ],
+  // GCS へのアップロード
+  upload: [['GCS_BUCKET', () => config.gcs.bucket]],
+  // データストアへの取り込み
+  import: [
+    ['PROJECT_NUMBER', () => config.projectNumber],
+    ['DATA_STORE_ID', () => config.dataStoreId],
+    ['GCS_BUCKET', () => config.gcs.bucket],
+  ],
+  // 検索 API の実行 (Cloud Run / npm run search / スモークテスト)
+  search: [
+    ['PROJECT_NUMBER', () => config.projectNumber],
+    ['AI_APPLICATION_ID', () => config.engineId],
+  ],
+};
+
+/** 後方互換のためのモード → ステップの対応。 */
+const MODE_STEPS = {
+  serve: ['search'],
+  import: ['import', 'search'],
+  sync: ['optimize', 'upload', 'import', 'search'],
 };
 
 /**
- * 指定モードに必要な環境変数が揃っているか検証する。
+ * 実行するステップに必要な環境変数が揃っているか検証する。
  * 不足はまとめて 1 度に報告する (旧実装は 1 個ずつしか教えてくれなかった)。
+ * @param {string[]} steps STEP_REQUIREMENTS のキー
+ * @param {string} [label] エラーメッセージに出す文脈
+ * @throws {ConfigError}
+ */
+export function assertSteps(steps, label = steps.join(' + ')) {
+  const missing = [];
+  for (const step of steps) {
+    const requirements = STEP_REQUIREMENTS[step];
+    if (!requirements) throw new ConfigError(`Unknown config step: ${step}`);
+    for (const [name, get] of requirements) {
+      if (!get() && !missing.includes(name)) missing.push(name);
+    }
+  }
+
+  if (missing.length > 0) {
+    throw new ConfigError(
+      `.env に以下の環境変数を設定してください (${label}): ${missing.join(', ')}\n` +
+        '雛形は .env.sample を参照してください。'
+    );
+  }
+}
+
+/**
+ * モード指定での検証。
  * @param {'serve'|'import'|'sync'} mode
  * @throws {ConfigError}
  */
 export function assertConfig(mode) {
-  const requirements = REQUIREMENTS[mode];
-  if (!requirements) throw new ConfigError(`Unknown config mode: ${mode}`);
-
-  const missing = requirements.filter(([, get]) => !get()).map(([name]) => name);
-  if (missing.length > 0) {
-    throw new ConfigError(
-      `.env に以下の環境変数を設定してください (${mode} モード): ${missing.join(', ')}\n` +
-        '雛形は .env.sample を参照してください。'
-    );
-  }
+  const steps = MODE_STEPS[mode];
+  if (!steps) throw new ConfigError(`Unknown config mode: ${mode}`);
+  assertSteps(steps, `${mode} モード`);
 }

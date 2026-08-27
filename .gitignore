@@ -3,5 +3,8 @@ node_modules/
 
 optimized_docs/*
 !optimized_docs/.gitkeep
+# 旧構成の名残。移行途中のチェックアウトから誤ってコミットしない
+faq_data.csv
+
 .optimize_state.json
 .last_import_operation.json

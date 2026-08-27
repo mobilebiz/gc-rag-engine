@@ -42,11 +42,15 @@ export async function smokeTest(query = config.search.smokeTestQuery) {
  * @param {boolean} [options.skipUpload]
  * @param {boolean} [options.skipImport]
  * @param {boolean} [options.skipSmoke]
+ * @param {boolean} [options.allowPartial] 最適化に失敗した文書があっても公開まで進める
  * @returns {Promise<{ok: boolean}>}
  */
 export async function runPipeline(options = {}) {
   const { full = false, resume = false } = options;
   const { skipOptimize = false, skipUpload = false, skipImport = false, skipSmoke = false } = options;
+  const { allowPartial = false } = options;
+  // 最適化を実行したときだけ「kintone が 0 件」を確定できる
+  let sourceConfirmedEmpty = false;
 
   if (resume) {
     logger.info('=== Resume mode: 前回のインポートOperationのみ待機 ===');
@@ -69,6 +73,17 @@ export async function runPipeline(options = {}) {
       unchanged: diff.unchanged,
     });
 
+    // 生成に失敗した文書があるまま公開すると、新規 FAQ は欠落し
+    // 更新 FAQ は古い内容のまま FULL インポートで確定してしまう。
+    if (diff.failed.length > 0 && !allowPartial) {
+      throw new Error(
+        `${diff.failed.length}件の最適化に失敗したため公開を中止します: ${diff.failed.join(', ')}\n` +
+          '再実行するか、承知のうえで進める場合は --allow-partial を付けてください。'
+      );
+    }
+
+    sourceConfirmedEmpty = diff.sourceCount === 0;
+
     const noChanges =
       diff.added.length === 0 && diff.updated.length === 0 && diff.removed.length === 0;
     if (noChanges && !full) {
@@ -79,7 +94,7 @@ export async function runPipeline(options = {}) {
 
   logger.info('\n=== Step 2/4: GCS アップロード ===');
   if (skipUpload) logger.info('skipped');
-  else logger.info('アップロード完了', await syncToGcs());
+  else logger.info('アップロード完了', await syncToGcs({ sourceConfirmedEmpty }));
 
   logger.info('\n=== Step 3/4: データストア再取り込み ===');
   if (skipImport) logger.info('skipped');

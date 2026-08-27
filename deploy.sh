@@ -13,12 +13,42 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-# 値に空白・引用符・# が含まれていても壊れないように source で読み込む
-# (旧実装の `export $(grep -v '^#' .env | xargs)` はこれらで壊れる)
-set -a
-# shellcheck disable=SC1091
-. ./.env
-set +a
+# .env は shell スクリプトではないので source しない。
+# source すると `KEY=Answer briefly` の `briefly` がコマンドとして実行され
+# (set -e で即終了)、`$VAR` や `` ` `` も展開されてしまう。
+# dotenv と同じ解釈になるよう自前で読む。
+load_dotenv() {
+  local file="$1" line key value
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line#"${line%%[![:space:]]*}"}"          # 先頭の空白を落とす
+    case "$line" in '' | '#'*) continue ;; esac      # 空行とコメント行
+    line="${line#export }"
+    case "$line" in *=*) ;; *) continue ;; esac      # KEY=VALUE 以外は無視
+
+    key="${line%%=*}"
+    value="${line#*=}"
+    case "$key" in
+      [A-Za-z_]*) ;;
+      *) continue ;;
+    esac
+    case "$key" in *[!A-Za-z0-9_]*) continue ;; esac
+
+    value="${value#"${value%%[![:space:]]*}"}"       # 値の先頭の空白を落とす
+    case "$value" in
+      \"*\") value="${value#\"}"; value="${value%\"}" ;;   # "..." はそのまま
+      \'*\') value="${value#\'}"; value="${value%\'}" ;;   # '...' はそのまま
+      \`*\`) value="${value#\`}"; value="${value%\`}" ;;   # dotenv はバッククォートも引用符扱い
+      *)
+        value="${value%%#*}"                         # 引用符なしは # 以降をコメント扱い
+        value="${value%"${value##*[![:space:]]}"}"   # 末尾の空白を落とす
+        ;;
+    esac
+
+    export "${key}=${value}"
+  done < "$file"
+}
+
+load_dotenv ./.env
 
 REQUIRED_VARS=(PROJECT_ID PROJECT_NUMBER LOCATION AI_APPLICATION_ID)
 missing=()

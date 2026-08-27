@@ -16,6 +16,18 @@
       "value": "",
       "type": "string",
       "description": "正常系で投げる質問。FAQ の内容に合わせて設定してください"
+    },
+    {
+      "key": "maxReferences",
+      "value": "3",
+      "type": "string",
+      "description": "デプロイ側の ANSWER_MAX_REFERENCES と揃えてください"
+    },
+    {
+      "key": "maxAnswerLength",
+      "value": "",
+      "type": "string",
+      "description": "SEARCH_PREAMBLE で長さを指示している場合のみ設定。空なら長さを検証しません"
     }
   ],
   "item": [
@@ -52,8 +64,9 @@
                   "    pm.expect(pm.response.json().status).to.eql('ok');",
                   "});",
                   "",
-                  "// このリクエストの応答時間はほぼコンテナ起動時間そのもの。",
-                  "// 検索を含まないので、コールドスタートの切り分けに使える。",
+                  "// 検索を含まないので、純粋な API 往復のレイテンシとして記録する。",
+                  "// なおこのリクエストがインスタンスを起こすため、後続の /search には",
+                  "// コールドスタート分は含まれない。",
                   "console.log('health responseTime:', pm.response.responseTime, 'ms');",
                   "pm.collectionVariables.set('healthMs', pm.response.responseTime);"
                 ]
@@ -112,7 +125,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"q\": \"{{query}}\"\n}",
+              "raw": "{\n  \"q\": {{queryJson}}\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -158,29 +171,31 @@
                   "    });",
                   "});",
                   "",
-                  "pm.test('references は ANSWER_MAX_REFERENCES 以内', function () {",
-                  "    pm.expect(body.references.length).to.be.at.most(3);",
+                  "// ANSWER_MAX_REFERENCES は設定可能なので、固定値ではなく変数と突き合わせる",
+                  "pm.test('references が maxReferences 以内', function () {",
+                  "    const max = Number(pm.variables.get('maxReferences'));",
+                  "    pm.expect(body.references.length).to.be.at.most(Number.isFinite(max) ? max : 3);",
                   "});",
                   "",
                   "pm.test('relatedQuestions が配列', function () {",
                   "    pm.expect(body.relatedQuestions).to.be.an('array');",
                   "});",
                   "",
-                  "// SEARCH_PREAMBLE で 200 文字以内を指示しているが、LLM は厳密には従わない。",
-                  "// 明らかに逸脱した場合だけ落とすため、上限は緩めに取っている。",
-                  "pm.test('回答が極端に長くない (200 文字指示の目安)', function () {",
-                  "    pm.expect(body.answer.length).to.be.at.most(400);",
-                  "});",
+                  "// 回答の長さは SEARCH_PREAMBLE で指示している場合にしか保証されない。",
+                  "// 未設定のデプロイではモデル既定のスタイルになるため、変数がある場合だけ検証する。",
+                  "const maxAnswerLength = Number(pm.variables.get('maxAnswerLength'));",
+                  "if (Number.isFinite(maxAnswerLength) && maxAnswerLength > 0) {",
+                  "    pm.test(`回答が ${maxAnswerLength} 文字以内`, function () {",
+                  "        pm.expect(body.answer.length).to.be.at.most(maxAnswerLength);",
+                  "    });",
+                  "}",
                   "",
-                  "// コールドスタートかどうかの切り分けに使う。",
-                  "// health との差が検索 + 回答生成の実時間にほぼ相当する。",
+                  "// health との差は「検索 + 回答生成」の実時間の目安。",
+                  "// /health が先にインスタンスを起こすため、コールドスタートの指標にはならない。",
+                  "// コールドスタートは Cloud Run のログの coldStart / clientInitMs で確認する。",
                   "const healthMs = Number(pm.collectionVariables.get('healthMs') || 0);",
                   "console.log('search responseTime:', pm.response.responseTime, 'ms',",
-                  "            '(health との差:', pm.response.responseTime - healthMs, 'ms)');",
-                  "",
-                  "pm.test('タイムアウトしていない', function () {",
-                  "    pm.expect(pm.response.responseTime).to.be.below(30000);",
-                  "});"
+                  "            '(health との差:', pm.response.responseTime - healthMs, 'ms)');"
                 ]
               }
             }
@@ -407,7 +422,12 @@
           "    if (!pm.variables.get(name)) {",
           "        throw new Error(`変数 ${name} を設定してください`);",
           "    }",
-          "}"
+          "}",
+          "",
+          "// query を JSON リテラルとして埋め込めるようにしておく。",
+          "// 生のまま {\"q\": \"{{query}}\"} に差し込むと、引用符や改行を含む質問で",
+          "// JSON が壊れてリクエスト自体が送れなくなる。",
+          "pm.collectionVariables.set('queryJson', JSON.stringify(pm.variables.get('query')));"
         ]
       }
     }

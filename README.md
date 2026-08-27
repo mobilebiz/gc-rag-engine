@@ -449,6 +449,9 @@ npm run sync -- --help # オプション一覧
 
 1. **kintone → Gemini 最適化** — FAQ を取得し、類義語・キーワード・想定検索クエリを付与した
    テキストを `optimized_docs/faq_<レコードID>.txt` に出力します。
+   **1 件でも生成に失敗したらここで中止します。** 欠けたまま次に進むと、新規 FAQ が
+   検索できず、更新 FAQ は古い内容のまま FULL インポートで確定してしまうためです。
+   承知のうえで進める場合は `--allow-partial` を付けます。
 2. **GCS アップロード** — `optimized_docs/` を `gs://$GCS_BUCKET/$GCS_PREFIX/` に同期します。
    ローカルに無い `.txt` はバケットからも削除されます。
 3. **データストア再取り込み** — `reconciliationMode: FULL` でインポートし、完了までポーリングします。
@@ -467,6 +470,11 @@ kintone 側で削除されたレコードのファイルはローカル・GCS �
 インポートは数十分かかることがあります。Operation 名は `.last_import_operation.json` に
 保存されているため、途中で止めても待機だけやり直せます。
 
+未完了の Operation が残った状態で通常の `npm run sync` を実行した場合は、
+まず前回の Operation を待って解決し、**そのうえで現在の GCS の内容で新しいインポートを開始します**
+（前回の Operation には今回アップロードした内容が含まれないため）。
+待機だけで終えたい場合は `--resume` を使ってください。
+
 ```bash
 npm run sync:resume
 ```
@@ -482,6 +490,7 @@ npm run sync:resume
 | `--skip-upload` | GCS アップロードを飛ばす |
 | `--skip-import` | データストア再取り込みを飛ばす |
 | `--skip-smoke` | スモークテストを飛ばす |
+| `--allow-partial` | 一部の最適化が失敗しても公開まで進める（既定は中止） |
 
 例: 生成結果だけ確認したい（GCS もデータストアも触らない）
 
@@ -513,7 +522,14 @@ npm test
 `postman/gc-rag-engine.postman_collection.json` に用意しています（8 リクエスト / 20 アサーション）。
 
 **Postman で使う場合** — コレクションを Import し、変数 `baseUrl` に Cloud Run の
-サービス URL（末尾のスラッシュなし）を設定して Run します。
+サービス URL（末尾のスラッシュなし）、`query` に FAQ の内容に合った質問を設定して Run します。
+
+| 変数 | 用途 |
+| :--- | :--- |
+| `baseUrl` | Cloud Run のサービス URL（必須） |
+| `query` | 正常系で投げる質問（必須） |
+| `maxReferences` | `ANSWER_MAX_REFERENCES` と揃える（既定 `3`） |
+| `maxAnswerLength` | `SEARCH_PREAMBLE` で長さを指示している場合のみ設定。空なら長さを検証しない |
 
 **CLI で使う場合** — Postman なしでも `newman` で実行できます。CI に組み込むならこちらです。
 
@@ -524,9 +540,13 @@ npx newman run postman/gc-rag-engine.postman_collection.json \
   --env-var query='<検索したい質問>'
 ```
 
-`GET /health` の応答時間は検索を含まないため、ほぼコンテナ起動時間そのものです。
-`POST /search` との差を見れば、遅さがコールドスタート由来か回答生成由来かを切り分けられます
+`GET /health` と `POST /search` の応答時間の差は「検索 + 回答生成」の実時間の目安です
 （テストスクリプトが両方の値をコンソールに出力します）。
+
+**コールドスタートの計測には使えません。** コレクションは `/health` を先に実行するため、
+その時点でインスタンスが起動してしまい、後続の `/search` にはコールドスタート分が含まれません。
+コールドスタートは Cloud Run のログの `coldStart` / `clientInitMs` / `processUptimeMs` で
+確認してください（[レイテンシとコールドスタート](#レイテンシとコールドスタート)）。
 
 ---
 
