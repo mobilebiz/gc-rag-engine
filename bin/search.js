@@ -2,12 +2,16 @@
 /**
  * CLI: 検索と回答生成を 1 回実行して結果を表示する。
  *
- *   npm run search -- "解約方法について教えて下さい"
+ *   npm run search -- "<検索したい質問>"
  */
 import { assertConfig, ConfigError } from '../src/config.js';
 import { search } from '../src/search.js';
 
-const query = process.argv.slice(2).join(' ').trim() || '解約方法について教えて下さい';
+const query = process.argv.slice(2).join(' ').trim();
+if (!query) {
+  console.error('使い方: npm run search -- "<検索したい質問>"');
+  process.exit(1);
+}
 
 try {
   assertConfig('serve');

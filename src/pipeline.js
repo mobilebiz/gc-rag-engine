@@ -12,6 +12,13 @@ import { search } from './search.js';
 
 /** 検索が実際に回答を返せる状態かを 1 クエリで確認する。 */
 export async function smokeTest(query = config.search.smokeTestQuery) {
+  if (!query) {
+    logger.warn(
+      'SMOKE_TEST_QUERY が未設定のためスモークテストをスキップします。' +
+        ' FAQ の内容に合った質問を .env に設定してください。'
+    );
+    return true;
+  }
   logger.info(`Smoke test query: "${query}"`);
   try {
     const result = await search(query);
