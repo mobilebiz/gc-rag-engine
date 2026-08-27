@@ -100,6 +100,7 @@ cp .env.sample .env
 | `SEARCH_PREAMBLE` | | 回答生成のプロンプト前置き。未設定ならモデル既定の回答スタイル |
 | `ANSWER_MAX_REFERENCES` | | レスポンスに含める参照数（既定 `3`） |
 | `SEARCH_PAGE_SIZE` | | 検索の取得件数（既定 `10`） |
+| `SEARCH_SINGLE_ROUNDTRIP` | | `true` で `search` を省き `answerQuery` だけで回答（既定 `false`） |
 | `SMOKE_TEST_QUERY` | | パイプライン最後の疎通確認クエリ。未設定ならスキップ |
 | `LOG_LEVEL` | | `debug` / `info` / `warn` / `error`（既定 `info`） |
 | `SEARCH_API_KEYS` | ✓* | 検索 API のキー。カンマ区切りで複数可。Cloud Run へは Secret Manager から注入 |
@@ -703,6 +704,34 @@ gcloud run services logs read rag-engine-service \
 
 > `answerMs` が支配的だった場合、上記はどれも効きません。
 > 呼び出し側で「回答を生成中です」といった繋ぎの応答を返す設計を検討してください。
+
+#### 1 往復モード（`SEARCH_SINGLE_ROUNDTRIP`）
+
+既定では `search` でセッションを開始してから `answerQuery` を呼ぶ **2 往復**です。
+`answerQuery` は `session` を渡さなければ自前で検索するため、事前の `search` を省けます。
+
+```bash
+SEARCH_SINGLE_ROUNDTRIP=true
+```
+
+実測（4 クエリ × 2 回、同一データストア）:
+
+| | 中央値 | 平均 |
+| :--- | ---: | ---: |
+| 2 往復（既定） | 4161 ms | 4272 ms |
+| 1 往復 | 2720 ms | 2609 ms |
+
+**約 1.4 秒（35%）短縮**します。参照元も `Answer.references` から同等に取れます
+（チャンク単位で返るため URI で重複排除しています）。
+
+> **既定を 2 往復のままにしている理由**
+> 1 往復では `answerQuery` 内部の検索になり、2 往復側で指定している
+> `queryExpansionSpec` / `spellCorrectionSpec` が効きません。想定質問から離れた
+> 言い回しでは根拠が弱くなり、`ignoreLowRelevantContent: true` と相まって
+> 回答が生成されないケースを 1 度観測しました（再現はせず、切り分けは未完了）。
+>
+> 有効化する場合は、ログの `mode` フィールド（`single` / `two-step`）と
+> `hasAnswer` を突き合わせて、回答が返らない割合が増えていないか確認してください。
 
 ---
 
