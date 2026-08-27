@@ -102,6 +102,10 @@ cp .env.sample .env
 | `SEARCH_PAGE_SIZE` | | 検索の取得件数（既定 `10`） |
 | `SMOKE_TEST_QUERY` | | パイプライン最後の疎通確認クエリ。未設定ならスキップ |
 | `LOG_LEVEL` | | `debug` / `info` / `warn` / `error`（既定 `info`） |
+| `SEARCH_API_KEYS` | ✓* | 検索 API のキー。カンマ区切りで複数可。Cloud Run へは Secret Manager から注入 |
+| `ALLOW_UNAUTHENTICATED` | | `true` で認証なし公開を明示的に許可（既定は起動を拒否） |
+| `SEARCH_API_KEY_SECRET` | ✓* | `deploy.sh` が参照する Secret Manager のシークレット名 |
+| `CLOUD_RUN_MAX_INSTANCES` | | スケール上限（既定 `10`）。濫用時のコスト上限になります |
 | `PORT` | | サーバの待ち受けポート（既定 `8080`。Cloud Run が自動設定） |
 | `CLOUD_RUN_SERVICE` | | デプロイ先サービス名（既定 `rag-engine-service`） |
 | `CLOUD_RUN_REGION` | | デプロイ先リージョン（既定 `asia-northeast1`） |
@@ -109,6 +113,8 @@ cp .env.sample .env
 | `CLOUD_RUN_MIN_INSTANCES` | | 常時起動インスタンス数（既定 `0`）。`1` にするとインスタンスベース課金になります |
 
 不足している変数はコマンド実行時にまとめて指摘されます。
+
+✱ `SEARCH_API_KEYS` / `SEARCH_API_KEY_SECRET` は、認証なし公開を明示的に選ぶ場合のみ省略できます。
 
 ### 3. Google Cloud 認証
 
@@ -700,12 +706,117 @@ gcloud run services logs read rag-engine-service \
 
 ---
 
+## 検索 API の認証
+
+`/search` は課金対象のクエリ（Agent Search の検索 + LLM による回答生成）を発行します。
+URL が漏れた時点で第三者があなたの請求で LLM を回せてしまうため、**共有シークレットによる
+認証を必須**にしています。
+
+キーは環境変数に直接置かず、**Secret Manager から Cloud Run に注入**します。
+
+### 1. シークレットを作る
+
+```bash
+gcloud services enable secretmanager.googleapis.com
+
+SECRET=rag-engine-api-key
+gcloud secrets create "$SECRET" --replication-policy=automatic
+
+# キーを生成して登録する (端末の履歴に残さないよう変数経由で渡す)
+KEY=$(node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))")
+printf '%s' "$KEY" | gcloud secrets versions add "$SECRET" --data-file=-
+
+# 実行用サービスアカウントに読み取り権限を与える
+gcloud secrets add-iam-policy-binding "$SECRET" \
+  --member="serviceAccount:${RUNNER_SA}" \
+  --role=roles/secretmanager.secretAccessor
+```
+
+`.env` にシークレット名を書きます。**キーそのものは書きません。**
+
+```bash
+SEARCH_API_KEY_SECRET=rag-engine-api-key
+```
+
+`deploy.sh` が `--set-secrets SEARCH_API_KEYS=<シークレット名>:latest` として渡します。
+
+### 2. 呼び出し側に渡す
+
+```bash
+gcloud secrets versions access latest --secret=rag-engine-api-key
+```
+
+呼び出し側はヘッダに載せるだけです。
+
+```bash
+curl -X POST "${SERVICE_URL}/search" \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: ${KEY}" \
+  -d '{"q": "検索したい質問"}'
+```
+
+`Authorization: Bearer ${KEY}` でも通ります。ヘッダ名を選べない呼び出し元がある場合に使ってください。
+
+### 3. キーをローテーションする
+
+`SEARCH_API_KEYS` はカンマ区切りで複数のキーを受け付けます。新旧を並べておけば、
+呼び出し側の切り替え中も無停止で移行できます。
+
+```bash
+# 新しいキーを追加し、旧キーと併記した値を新バージョンとして登録する
+NEW=$(node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))")
+OLD=$(gcloud secrets versions access latest --secret=rag-engine-api-key)
+printf '%s,%s' "$NEW" "$OLD" | gcloud secrets versions add rag-engine-api-key --data-file=-
+
+./deploy.sh                      # 新リビジョンで新旧どちらも通るようになる
+# → 呼び出し側を新キーに切り替える
+printf '%s' "$NEW" | gcloud secrets versions add rag-engine-api-key --data-file=-
+./deploy.sh                      # 旧キーを無効化
+```
+
+> `--set-secrets` の `:latest` は**リビジョン作成時に解決されます。**
+> シークレットを更新しただけでは反映されないので、`./deploy.sh` で新リビジョンを作ってください。
+
+### 認証を無効にする場合
+
+検証環境などで意図的に認証なしで公開する場合のみ、`.env` に次を設定します。
+
+```bash
+ALLOW_UNAUTHENTICATED=true
+```
+
+設定漏れを「認証なし公開」と黙って解釈しないよう、**キーも `ALLOW_UNAUTHENTICATED` も
+無い場合はアプリが起動を拒否します**（`deploy.sh` もデプロイ前に止めます）。
+
+### 併せて効く緩和策
+
+- `CLOUD_RUN_MAX_INSTANCES`（既定 `10`）でスケール上限を絞り、濫用時のコスト上限にする
+- Cloud Billing の予算アラートを設定する
+
+---
+
 ## API 仕様
 
 **Service URL**: `https://rag-engine-service-xxxxxxxxx-an.a.run.app`（環境により異なります）
 
-未認証アクセスを許可しています（Function Calling からの呼び出しを容易にするため、
-`deploy.sh` で `--allow-unauthenticated` を指定）。
+### 認証
+
+**すべての `/search` リクエストに API キーが必要です。**
+
+```
+X-API-Key: <キー>
+```
+
+`Authorization: Bearer <キー>` でも受け付けます。キーが無い・誤っている場合は `401` を返します。
+
+Cloud Run 自体は `--allow-unauthenticated` で公開し、**アプリ側でキーを検証**しています。
+呼び出し側（Function Calling や音声応答プラットフォーム）が Google の ID トークンを
+取得できないことが多く、任意ヘッダなら送れるためです。
+
+`/health` と `/` は認証不要です。keep-warm や外形監視から叩けるようにするためで、
+どちらも情報を返しません。
+
+設定手順は [検索 API の認証](#検索-api-の認証) を参照してください。
 
 ### `POST /search` / `GET /search`
 

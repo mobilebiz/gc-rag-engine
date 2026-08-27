@@ -1,7 +1,7 @@
 {
   "info": {
     "name": "gc-rag-engine",
-    "description": "kintone FAQ を Gemini Enterprise Agent Platform で検索する RAG エンジンの API テスト。\n\n使い方:\n1. 変数 `baseUrl` に Cloud Run のサービス URL を設定する\n   (例: https://rag-engine-service-xxxxxxxx-an.a.run.app)\n2. 変数 `query` に FAQ の内容に合った質問を設定する\n3. コレクション全体を Run する\n\nCLI から実行する場合:\n  npx newman run postman/gc-rag-engine.postman_collection.json \\\n    --env-var baseUrl=https://your-service-url \\\n    --env-var query='<検索したい質問>'",
+    "description": "kintone FAQ を Gemini Enterprise Agent Platform で検索する RAG エンジンの API テスト。\n\n使い方:\n1. 変数 `baseUrl` に Cloud Run のサービス URL を設定する\n2. 変数 `query` に FAQ の内容に合った質問を設定する\n3. 変数 `apiKey` に検索 API のキーを設定する\n4. コレクション全体を Run する\n\nCLI から実行する場合:\n  npx newman run postman/gc-rag-engine.postman_collection.json \\\n    --env-var baseUrl=https://your-service-url \\\n    --env-var query='<検索したい質問>' \\\n    --env-var apiKey='<検索 API のキー>'",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -28,6 +28,12 @@
       "value": "",
       "type": "string",
       "description": "SEARCH_PREAMBLE で長さを指示している場合のみ設定。空なら長さを検証しません"
+    },
+    {
+      "key": "apiKey",
+      "value": "",
+      "type": "string",
+      "description": "検索 API のキー (SEARCH_API_KEYS のいずれか)。認証なしで公開している場合は空のまま"
     }
   ],
   "item": [
@@ -121,6 +127,11 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}",
+                "description": "検索 API の共有シークレット"
               }
             ],
             "body": {
@@ -205,7 +216,13 @@
           "name": "GET /search?q=",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}",
+                "description": "検索 API の共有シークレット"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/search?q={{query}}",
               "host": [
@@ -258,6 +275,11 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}",
+                "description": "検索 API の共有シークレット"
               }
             ],
             "body": {
@@ -309,6 +331,11 @@
               {
                 "key": "Content-Type",
                 "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}",
+                "description": "検索 API の共有シークレット"
               }
             ],
             "body": {
@@ -349,7 +376,13 @@
           "name": "GET /search (q なし)",
           "request": {
             "method": "GET",
-            "header": [],
+            "header": [
+              {
+                "key": "X-API-Key",
+                "value": "{{apiKey}}",
+                "description": "検索 API の共有シークレット"
+              }
+            ],
             "url": {
               "raw": "{{baseUrl}}/search",
               "host": [
@@ -402,6 +435,55 @@
                   "pm.test('404 が返る', function () {",
                   "    pm.response.to.have.status(404);",
                   "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /search (認証なし)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/search?q={{query}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "search"
+              ],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "{{query}}"
+                }
+              ]
+            },
+            "description": "X-API-Key を付けずに叩き、認証が効いていることを確認する。"
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// apiKey が設定されていないデプロイ (ALLOW_UNAUTHENTICATED=true) では",
+                  "// 認証が無効なので、401 ではなく通常のレスポンスが返る。",
+                  "const authEnabled = Boolean(pm.variables.get('apiKey'));",
+                  "",
+                  "if (authEnabled) {",
+                  "    pm.test('401 が返る', function () {",
+                  "        pm.response.to.have.status(401);",
+                  "    });",
+                  "    pm.test('error が Unauthorized', function () {",
+                  "        pm.expect(pm.response.json().error).to.eql('Unauthorized');",
+                  "    });",
+                  "} else {",
+                  "    pm.test('認証が無効なので 200 が返る', function () {",
+                  "        pm.response.to.have.status(200);",
+                  "    });",
+                  "}"
                 ]
               }
             }

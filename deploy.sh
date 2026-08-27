@@ -74,7 +74,7 @@ ENV_VARS=(
   "AI_APPLICATION_ID=${AI_APPLICATION_ID}"
 )
 # 任意設定 (未設定ならサービス側の既定値に任せる)
-for var in SEARCH_PREAMBLE ANSWER_MAX_REFERENCES SEARCH_PAGE_SIZE LOG_LEVEL; do
+for var in SEARCH_PREAMBLE ANSWER_MAX_REFERENCES SEARCH_PAGE_SIZE LOG_LEVEL ALLOW_UNAUTHENTICATED; do
   if [ -n "${!var:-}" ]; then
     ENV_VARS+=("${var}=${!var}")
   fi
@@ -93,6 +93,27 @@ for kv in "${ENV_VARS[@]}"; do
 done
 ENV_VARS_ARG="^${DELIM}^${joined}"
 
+# 検索 API のキーは環境変数に直接置かず、Secret Manager から注入する。
+# SEARCH_API_KEY_SECRET が未設定で、かつ認証なし公開を明示していない場合は
+# 起動時にアプリが落ちるので、その前にここで止める。
+SECRET_ARGS=()
+if [ -n "${SEARCH_API_KEY_SECRET:-}" ]; then
+  SECRET_ARGS=(--set-secrets "SEARCH_API_KEYS=${SEARCH_API_KEY_SECRET}:latest")
+  echo "  API Key Secret:  ${SEARCH_API_KEY_SECRET}:latest"
+elif [ "${ALLOW_UNAUTHENTICATED:-}" = "true" ]; then
+  echo "  ⚠ 認証なしで公開します (ALLOW_UNAUTHENTICATED=true)"
+else
+  cat >&2 <<'MSG'
+Error: 検索 API のキーが設定されていません。
+
+  .env に SEARCH_API_KEY_SECRET=<Secret Manager のシークレット名> を設定してください。
+  シークレットの作り方は README の「検索 API の認証」を参照してください。
+
+  意図して認証なしで公開する場合のみ ALLOW_UNAUTHENTICATED=true を設定してください。
+MSG
+  exit 1
+fi
+
 echo "Deploying to Cloud Run..."
 echo "  Service:         ${SERVICE_NAME}"
 echo "  Region:          ${REGION}"
@@ -107,4 +128,6 @@ gcloud run deploy "${SERVICE_NAME}" \
   --allow-unauthenticated \
   --cpu-boost \
   --min-instances="${CLOUD_RUN_MIN_INSTANCES:-0}" \
-  --set-env-vars="${ENV_VARS_ARG}"
+  --max-instances="${CLOUD_RUN_MAX_INSTANCES:-10}" \
+  --set-env-vars="${ENV_VARS_ARG}" \
+  "${SECRET_ARGS[@]}"

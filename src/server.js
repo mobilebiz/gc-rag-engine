@@ -7,6 +7,7 @@ import express from 'express';
 import { config } from './config.js';
 import { logger } from './logger.js';
 import { search } from './search.js';
+import { requireApiKey } from './auth.js';
 
 export function createApp() {
   const app = express();
@@ -38,8 +39,11 @@ export function createApp() {
     }
   };
 
-  app.get('/search', handleSearch);
-  app.post('/search', handleSearch);
+  // 認証は /search にだけ掛ける。/health と / は情報を返さず、
+  // keep-warm や外形監視から認証情報なしで叩けたほうが都合がよい。
+  const auth = requireApiKey(config.auth.keys);
+  app.get('/search', auth, handleSearch);
+  app.post('/search', auth, handleSearch);
 
   // ヘルスチェックは /health を正とする。
   // Cloud Run の *.run.app では **/healthz へのリクエストがコンテナに到達しない**

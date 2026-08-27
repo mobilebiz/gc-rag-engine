@@ -7,6 +7,7 @@
  *   - 検証はエントリポイント (bin/*, index.js) から assertConfig() を明示的に呼ぶ。
  */
 import dotenv from 'dotenv';
+import { logger } from './logger.js';
 
 // quiet: true で dotenv v17 の起動バナーを抑制する。
 // path はテストから DOTENV_CONFIG_PATH で差し替えられるようにしておく (未設定なら ./.env)。
@@ -78,6 +79,18 @@ export const config = {
     // スモークテストのクエリ。FAQ の内容に依存するため既定値は持たない。
     // 未設定ならスモークテストはスキップされる。
     smokeTestQuery: str(process.env.SMOKE_TEST_QUERY),
+  },
+
+  // --- 検索 API の認証 ---
+  auth: {
+    // カンマ区切りで複数指定できる。ローテーション中は新旧を並べる。
+    // Cloud Run へは Secret Manager から SEARCH_API_KEYS として渡す。
+    keys: str(process.env.SEARCH_API_KEYS)
+      .split(',')
+      .map((key) => key.trim())
+      .filter(Boolean),
+    // 認証なしで公開することを明示的に選んだ場合のみ true にする
+    allowUnauthenticated: str(process.env.ALLOW_UNAUTHENTICATED).toLowerCase() === 'true',
   },
 
   // --- ローカルファイル ---
@@ -162,6 +175,29 @@ export function assertSteps(steps, label = steps.join(' + ')) {
         '雛形は .env.sample を参照してください。'
     );
   }
+}
+
+/**
+ * 検索 API を公開する前に、認証の設定が意図的なものか確認する。
+ *
+ * キー未設定を「認証なしで公開」と黙って解釈すると、設定漏れがそのまま
+ * 公開エンドポイントになる。無効化するには明示的な指定を必要とする。
+ * @throws {ConfigError}
+ */
+export function assertServerAuth() {
+  if (config.auth.keys.length > 0) return;
+  if (config.auth.allowUnauthenticated) {
+    logger.warn(
+      '認証なしで検索 API を公開します (ALLOW_UNAUTHENTICATED=true)。' +
+        ' URL を知っていれば誰でも課金対象のクエリを実行できます。'
+    );
+    return;
+  }
+  throw new ConfigError(
+    '検索 API のキーが設定されていません。\n' +
+      '  SEARCH_API_KEYS にキーを設定してください (カンマ区切りで複数可)。\n' +
+      '  意図して認証なしで公開する場合のみ ALLOW_UNAUTHENTICATED=true を設定してください。'
+  );
 }
 
 /**
