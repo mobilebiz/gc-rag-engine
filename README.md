@@ -615,6 +615,30 @@ Agent Platform への統合でメニュー位置が変わっています。
 [https://console.cloud.google.com/gen-app-builder/engines](https://console.cloud.google.com/gen-app-builder/engines)
 を直接開くか、コンソール検索で「Agent Search」または「AI Applications」を探してください。
 
+### `429 Too Many Requests` が返る
+
+Agent Search の **LLM 要約クエリのクォータ**（`discoveryengine.googleapis.com/llm_requests`）に
+達しています。**既定は 1 分あたり 10 リクエスト / プロジェクト**と低いため、
+少しバーストしただけで到達します。
+
+```bash
+# 現在の上限を確認する
+TOKEN=$(gcloud auth print-access-token)
+curl -s -H "Authorization: Bearer $TOKEN" -H "x-goog-user-project: ${PROJECT_ID}" \
+  "https://serviceusage.googleapis.com/v1beta1/projects/${PROJECT_ID}/services/discoveryengine.googleapis.com/consumerQuotaMetrics/discoveryengine.googleapis.com%2Fllm_requests"
+```
+
+引き上げ申請はコンソールから行います。
+
+```
+https://console.cloud.google.com/apis/api/discoveryengine.googleapis.com/quotas?project=<PROJECT_ID>
+```
+
+`llm_requests` の行を選び、「割り当てを編集」から新しい上限と理由を送信します。
+
+なお `/search` は 1 リクエストにつき 1 回 `answerQuery` を呼びます
+（1 往復モードでも 2 往復モードでも回数は同じです）。
+
 ### インポートで大量に失敗する
 
 データストアの `contentConfig` が非構造化ドキュメント用（`CONTENT_REQUIRED`）になっているか確認します。
@@ -892,8 +916,14 @@ GET の場合は `/search?q=...` です。
 
 | ステータス | 条件 |
 | :--- | :--- |
-| `400` | `q` が空、または指定されていない |
+| `400` | `q` が空、または指定されていない（不正な JSON もここ） |
+| `401` | API キーが無い、または誤っている |
+| `429` | Agent Search のクォータ上限。`Retry-After` に再試行までの秒数が入ります |
 | `500` | 検索・回答生成に失敗 |
+
+`429` は **`Retry-After` ヘッダを必ず返します。** Google のエラーに含まれる
+クォータ窓の開始時刻から、次の窓が開くまでの秒数を計算しています。
+呼び出し側はこの秒数だけ待ってから再試行してください。
 
 **使用例**
 

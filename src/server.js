@@ -9,7 +9,11 @@ import { logger } from './logger.js';
 import { search } from './search.js';
 import { requireApiKey } from './auth.js';
 
-export function createApp() {
+/**
+ * @param {{searchFn?: (query: string) => Promise<object>}} [deps]
+ *   searchFn はテストから差し替えるための注入点。既定は本物の検索。
+ */
+export function createApp({ searchFn = search } = {}) {
   const app = express();
   app.disable('x-powered-by');
   app.use(express.json());
@@ -26,7 +30,7 @@ export function createApp() {
 
     const startedAt = performance.now();
     try {
-      const result = await search(query.trim());
+      const result = await searchFn(query.trim());
       res.json(result);
       // src/search.js の searchMs / answerMs と突き合わせると、
       // アプリ側のオーバーヘッドがどれだけあるか分かる
@@ -67,6 +71,11 @@ export function createApp() {
     const fields = { path: req.path, status: isClientError ? status : 500, error: err?.message };
     if (isClientError) logger.warn('不正なリクエストを受け取りました', fields);
     else logger.error('リクエスト処理に失敗しました', fields);
+
+    // レート制限は再試行してよい時刻を伝える
+    if (Number.isFinite(err?.retryAfterSeconds)) {
+      res.set('Retry-After', String(err.retryAfterSeconds));
+    }
 
     res.status(isClientError ? status : 500).json({
       error: isClientError ? (STATUS_CODES[status] ?? 'Bad Request') : 'Internal Server Error',

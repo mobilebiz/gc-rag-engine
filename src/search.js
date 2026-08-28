@@ -13,6 +13,7 @@
 import { v1 } from '@google-cloud/discoveryengine';
 import { apiHost, config } from './config.js';
 import { logger } from './logger.js';
+import { asRateLimitError } from './errors.js';
 
 const { SearchServiceClient, ConversationalSearchServiceClient } = v1;
 
@@ -115,7 +116,23 @@ function toReferences(results) {
  * @returns {Promise<{answer: string|null, references: {title: string, link: string}[], relatedQuestions: string[]}>}
  */
 export async function search(query) {
-  return config.search.singleRoundTrip ? searchSingleRoundTrip(query) : searchTwoRoundTrips(query);
+  try {
+    return await (config.search.singleRoundTrip
+      ? searchSingleRoundTrip(query)
+      : searchTwoRoundTrips(query));
+  } catch (error) {
+    // クォータ超過はサーバ障害ではない。429 として返さないと呼び出し側が
+    // リトライを重ねて事態を悪化させる。
+    const rateLimit = asRateLimitError(error);
+    if (!rateLimit) throw error;
+
+    logger.warn('クォータ上限に達しました', {
+      quotaMetric: rateLimit.quotaMetric,
+      quotaLimit: rateLimit.quotaLimit,
+      retryAfterSeconds: rateLimit.retryAfterSeconds,
+    });
+    throw rateLimit;
+  }
 }
 
 /** answerQuery が根拠にする回答生成の設定。両方の経路で共通。 */
