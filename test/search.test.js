@@ -61,3 +61,16 @@ test('参照が無い / 未定義でも空配列を返す', () => {
   assert.deepEqual(toAnswerReferences(undefined), []);
   assert.deepEqual(toAnswerReferences([{}, { unknownInfo: {} }]), []);
 });
+
+test('URI とタイトルのキー空間を混同しない', () => {
+  // 片方の URI が、もう片方の (URI を持たない参照の) タイトルと一致するケース。
+  // キーを種別で前置きしないと、別ドキュメントなのに重複と誤判定される。
+  const refs = [
+    { unstructuredDocumentInfo: { uri: 'gs://b/faq_1.txt', title: 'faq_1' } },
+    { unstructuredDocumentInfo: { title: 'gs://b/faq_1.txt' } },
+  ];
+  assert.deepEqual(toAnswerReferences(refs), [
+    { title: 'faq_1', link: 'gs://b/faq_1.txt' },
+    { title: 'gs://b/faq_1.txt', link: '' },
+  ]);
+});

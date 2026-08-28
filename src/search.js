@@ -88,8 +88,10 @@ export function toAnswerReferences(references, max = config.search.maxReferences
     if (!info) continue;
 
     const link = info.uri ?? '';
-    // URI が無いものは重複判定できないのでタイトルで代用する
-    const key = link || info.title || '';
+    // URI が無いものは重複判定できないのでタイトルで代用する。
+    // 種別で前置きしないと、ある参照の URI が別の参照のタイトルと一致したときに
+    // 別ドキュメントを取りこぼす。
+    const key = link ? `uri:${link}` : info.title ? `title:${info.title}` : '';
     if (!key || seen.has(key)) continue;
     seen.add(key);
 
