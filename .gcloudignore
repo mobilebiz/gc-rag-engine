@@ -22,5 +22,6 @@ optimized_docs/
 
 # 検索 API の実行に不要なもの
 test/
+docs/
 deploy.sh
 *.md

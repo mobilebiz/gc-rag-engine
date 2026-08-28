@@ -1,0 +1,148 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2900" height="1360" viewBox="0 0 2900 1360">
+<defs><marker id="ah" viewBox="0 0 12 12" refX="11" refY="6" markerWidth="7.5" markerHeight="7.5" orient="auto"><path d="M0,0 L12,6 L0,12 z" fill="#9AA3B0"/></marker></defs>
+<rect width="2900" height="1360" fill="#F5F7FA"/>
+<text x="110" y="82" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="48" fill="#1F2733" font-weight="700">kintone → GCP RAG 構築フロー</text>
+<text x="110" y="128" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="24" fill="#6B7482">gc-rag-engine ｜ 同期パイプライン（npm run sync）と 検索 API（Cloud Run）の 2 系統</text>
+<rect x="1985" y="88" width="20" height="20" rx="5" fill="#2F6FED"/>
+<text x="2015" y="105" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="20" fill="#6B7482">kintone</text>
+<rect x="2118" y="88" width="20" height="20" rx="5" fill="#5A6473"/>
+<text x="2148" y="105" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="20" fill="#6B7482">ローカル / CI</text>
+<rect x="2336" y="88" width="20" height="20" rx="5" fill="#6E44D6"/>
+<text x="2366" y="105" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="20" fill="#6B7482">Gemini API</text>
+<rect x="2502" y="88" width="20" height="20" rx="5" fill="#1E8E3E"/>
+<text x="2532" y="105" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="20" fill="#6B7482">Google Cloud</text>
+<rect x="2690" y="88" width="20" height="20" rx="5" fill="#C2571A"/>
+<text x="2720" y="105" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="20" fill="#6B7482">呼び出し元</text>
+<rect x="70" y="170" width="2760" height="470" rx="24" fill="#FFFFFF" opacity="0.62"/>
+<rect x="70" y="170" width="2760" height="470" rx="24" fill="none" stroke="#E3E7ED" stroke-width="1.6"/>
+<circle cx="112" cy="214" r="19" fill="#1F2733"/>
+<text x="112" y="222" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="22" fill="#FFFFFF" font-weight="700" text-anchor="middle">1</text>
+<text x="146" y="223" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="28" fill="#1F2733" font-weight="700">同期パイプライン</text>
+<text x="412" y="223" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="21" fill="#6B7482">npm run sync（手動 / 定期実行）— kintone の FAQ を最適化してデータストアへ</text>
+<rect x="70" y="690" width="2760" height="470" rx="24" fill="#FFFFFF" opacity="0.62"/>
+<rect x="70" y="690" width="2760" height="470" rx="24" fill="none" stroke="#E3E7ED" stroke-width="1.6"/>
+<circle cx="112" cy="734" r="19" fill="#1F2733"/>
+<text x="112" y="742" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="22" fill="#FFFFFF" font-weight="700" text-anchor="middle">2</text>
+<text x="146" y="743" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="28" fill="#1F2733" font-weight="700">検索 API</text>
+<text x="298" y="743" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="21" fill="#6B7482">npm start / Cloud Run（リクエストごと）— 質問を受けて回答を生成</text>
+<clipPath id="c1"><rect x="110" y="260" width="408" height="330" rx="16"/></clipPath>
+<rect x="113" y="266" width="408" height="330" rx="16" fill="#0B1220" opacity="0.06"/>
+<rect x="110" y="260" width="408" height="330" rx="16" fill="#FFFFFF"/>
+<rect x="110" y="260" width="408" height="11" fill="#2F6FED" clip-path="url(#c1)"/>
+<rect x="110" y="260" width="408" height="330" rx="16" fill="none" stroke="#DFE3E9" stroke-width="1.6"/>
+<text x="134" y="326" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="30" fill="#1F2733" font-weight="700">kintone FAQ アプリ</text>
+<rect x="134" y="344" width="96" height="34" rx="17" fill="#E7EFFD"/>
+<text x="147" y="367" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="17" fill="#2F6FED" font-weight="600">kintone</text>
+<text x="134" y="418" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="21" fill="#6B7482">REST API で全件取得</text>
+<text x="134" y="452" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="21" fill="#6B7482">500 件ずつページング</text>
+<text x="134" y="486" font-family="SF Mono, Menlo, Consolas, monospace" font-size="21" fill="#6B7482">→ { id, question, answer }</text>
+<clipPath id="c2"><rect x="678" y="260" width="408" height="330" rx="16"/></clipPath>
+<rect x="681" y="266" width="408" height="330" rx="16" fill="#0B1220" opacity="0.06"/>
+<rect x="678" y="260" width="408" height="330" rx="16" fill="#FFFFFF"/>
+<rect x="678" y="260" width="408" height="11" fill="#5A6473" clip-path="url(#c2)"/>
+<rect x="678" y="260" width="408" height="330" rx="16" fill="none" stroke="#DFE3E9" stroke-width="1.6"/>
+<text x="702" y="326" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="30" fill="#1F2733" font-weight="700">差分判定</text>
+<rect x="702" y="344" width="179" height="34" rx="17" fill="#EDEFF3"/>
+<text x="715" y="367" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="17" fill="#5A6473" font-weight="600">ローカル / CI</text>
+<text x="702" y="418" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="21" fill="#6B7482">質問+回答の SHA-1 を</text>
+<text x="702" y="452" font-family="SF Mono, Menlo, Consolas, monospace" font-size="21" fill="#6B7482">.optimize_state.json</text>
+<text x="702" y="486" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="21" fill="#6B7482">と照合し変更分だけ処理</text>
+<text x="702" y="520" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="21" fill="#6B7482">--full で全件再生成</text>
+<clipPath id="c3"><rect x="1246" y="260" width="408" height="330" rx="16"/></clipPath>
+<rect x="1249" y="266" width="408" height="330" rx="16" fill="#0B1220" opacity="0.06"/>
+<rect x="1246" y="260" width="408" height="330" rx="16" fill="#FFFFFF"/>
+<rect x="1246" y="260" width="408" height="11" fill="#6E44D6" clip-path="url(#c3)"/>
+<rect x="1246" y="260" width="408" height="330" rx="16" fill="none" stroke="#DFE3E9" stroke-width="1.6"/>
+<text x="1270" y="326" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="30" fill="#1F2733" font-weight="700">Gemini で最適化</text>
+<rect x="1270" y="344" width="126" height="34" rx="17" fill="#F0EAFB"/>
+<text x="1283" y="367" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="17" fill="#6E44D6" font-weight="600">Gemini API</text>
+<text x="1270" y="418" font-family="SF Mono, Menlo, Consolas, monospace" font-size="21" fill="#6B7482">gemini-3.7-flash / 並列 3</text>
+<text x="1270" y="452" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="21" fill="#6B7482">類義語・キーワード・</text>
+<text x="1270" y="486" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="21" fill="#6B7482">想定検索クエリを付与</text>
+<text x="1270" y="520" font-family="SF Mono, Menlo, Consolas, monospace" font-size="21" fill="#6B7482">→ optimized_docs/*.txt</text>
+<clipPath id="c4"><rect x="1814" y="260" width="408" height="330" rx="16"/></clipPath>
+<rect x="1817" y="266" width="408" height="330" rx="16" fill="#0B1220" opacity="0.06"/>
+<rect x="1814" y="260" width="408" height="330" rx="16" fill="#FFFFFF"/>
+<rect x="1814" y="260" width="408" height="11" fill="#1E8E3E" clip-path="url(#c4)"/>
+<rect x="1814" y="260" width="408" height="330" rx="16" fill="none" stroke="#DFE3E9" stroke-width="1.6"/>
+<text x="1838" y="326" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="30" fill="#1F2733" font-weight="700">Cloud Storage</text>
+<rect x="1838" y="344" width="146" height="34" rx="17" fill="#E5F3E9"/>
+<text x="1851" y="367" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="17" fill="#1E8E3E" font-weight="600">Google Cloud</text>
+<text x="1838" y="418" font-family="SF Mono, Menlo, Consolas, monospace" font-size="21" fill="#6B7482">gs://&lt;bucket&gt;/faq_docs/</text>
+<text x="1838" y="452" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="21" fill="#6B7482">ローカルに無い .txt は</text>
+<text x="1838" y="486" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="21" fill="#6B7482">バケットからも削除</text>
+<clipPath id="c5"><rect x="2382" y="260" width="408" height="330" rx="16"/></clipPath>
+<rect x="2385" y="266" width="408" height="330" rx="16" fill="#0B1220" opacity="0.06"/>
+<rect x="2382" y="260" width="408" height="330" rx="16" fill="#FFFFFF"/>
+<rect x="2382" y="260" width="408" height="11" fill="#1E8E3E" clip-path="url(#c5)"/>
+<rect x="2382" y="260" width="408" height="330" rx="16" fill="none" stroke="#DFE3E9" stroke-width="1.6"/>
+<text x="2406" y="326" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="30" fill="#1F2733" font-weight="700">データストア</text>
+<rect x="2406" y="344" width="146" height="34" rx="17" fill="#E5F3E9"/>
+<text x="2419" y="367" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="17" fill="#1E8E3E" font-weight="600">Google Cloud</text>
+<text x="2406" y="418" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="21" fill="#6B7482">非構造化データ / FULL 同期</text>
+<text x="2406" y="452" font-family="SF Mono, Menlo, Consolas, monospace" font-size="21" fill="#6B7482">importDocuments を</text>
+<text x="2406" y="486" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="21" fill="#6B7482">REST でポーリング（最大 3h）</text>
+<text x="2406" y="520" font-family="SF Mono, Menlo, Consolas, monospace" font-size="21" fill="#6B7482">sync:resume で再開可能</text>
+<line x1="530" y1="425.0" x2="668" y2="425.0" stroke="#9AA3B0" stroke-width="3.4" marker-end="url(#ah)" stroke-linecap="round"/>
+<text x="599.0" y="409.0" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="18" fill="#59616E" font-weight="600" text-anchor="middle">records.json</text>
+<line x1="1098" y1="425.0" x2="1236" y2="425.0" stroke="#9AA3B0" stroke-width="3.4" marker-end="url(#ah)" stroke-linecap="round"/>
+<text x="1167.0" y="409.0" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="18" fill="#59616E" font-weight="600" text-anchor="middle">変更分のみ</text>
+<line x1="1666" y1="425.0" x2="1804" y2="425.0" stroke="#9AA3B0" stroke-width="3.4" marker-end="url(#ah)" stroke-linecap="round"/>
+<text x="1735.0" y="409.0" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="18" fill="#59616E" font-weight="600" text-anchor="middle">アップロード</text>
+<line x1="2234" y1="425.0" x2="2372" y2="425.0" stroke="#9AA3B0" stroke-width="3.4" marker-end="url(#ah)" stroke-linecap="round"/>
+<text x="2303.0" y="409.0" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="18" fill="#59616E" font-weight="600" text-anchor="middle">取り込み（FULL）</text>
+<clipPath id="c6"><rect x="110" y="780" width="408" height="330" rx="16"/></clipPath>
+<rect x="113" y="786" width="408" height="330" rx="16" fill="#0B1220" opacity="0.06"/>
+<rect x="110" y="780" width="408" height="330" rx="16" fill="#FFFFFF"/>
+<rect x="110" y="780" width="408" height="11" fill="#C2571A" clip-path="url(#c6)"/>
+<rect x="110" y="780" width="408" height="330" rx="16" fill="none" stroke="#DFE3E9" stroke-width="1.6"/>
+<text x="134" y="846" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="30" fill="#1F2733" font-weight="700">呼び出し元</text>
+<rect x="134" y="864" width="111" height="34" rx="17" fill="#FCEDE2"/>
+<text x="147" y="887" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="17" fill="#C2571A" font-weight="600">呼び出し元</text>
+<text x="134" y="938" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="21" fill="#6B7482">音声応答システム /</text>
+<text x="134" y="972" font-family="SF Mono, Menlo, Consolas, monospace" font-size="21" fill="#6B7482">Function Calling</text>
+<text x="134" y="1006" font-family="SF Mono, Menlo, Consolas, monospace" font-size="21" fill="#6B7482">GET・POST /search</text>
+<text x="134" y="1040" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="21" fill="#6B7482">ヘッダに API キー</text>
+<clipPath id="c7"><rect x="678" y="780" width="976" height="330" rx="16"/></clipPath>
+<rect x="681" y="786" width="976" height="330" rx="16" fill="#0B1220" opacity="0.06"/>
+<rect x="678" y="780" width="976" height="330" rx="16" fill="#FFFFFF"/>
+<rect x="678" y="780" width="976" height="11" fill="#1E8E3E" clip-path="url(#c7)"/>
+<rect x="678" y="780" width="976" height="330" rx="16" fill="none" stroke="#DFE3E9" stroke-width="1.6"/>
+<text x="702" y="846" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="30" fill="#1F2733" font-weight="700">Cloud Run  —  rag-engine-service</text>
+<rect x="702" y="864" width="146" height="34" rx="17" fill="#E5F3E9"/>
+<text x="715" y="887" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="17" fill="#1E8E3E" font-weight="600">Google Cloud</text>
+<text x="702" y="938" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="21" fill="#6B7482">Express / asia-northeast1 / 最大 10 インスタンス / SIGTERM で graceful shutdown</text>
+<text x="702" y="974" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="21" fill="#6B7482">① API キー検証（Secret Manager から注入）— 401 / 429 は Retry-After 付き</text>
+<text x="702" y="1010" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="21" fill="#6B7482">② search() で関連文書を検索しセッション開始</text>
+<text x="702" y="1046" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="21" fill="#6B7482">③ answerQuery() で検索結果を根拠に回答を生成</text>
+<text x="702" y="1082" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="21" fill="#6B7482">SEARCH_SINGLE_ROUNDTRIP=true なら ① → ③ の 1 往復のみ</text>
+<clipPath id="c8"><rect x="1814" y="780" width="976" height="330" rx="16"/></clipPath>
+<rect x="1817" y="786" width="976" height="330" rx="16" fill="#0B1220" opacity="0.06"/>
+<rect x="1814" y="780" width="976" height="330" rx="16" fill="#FFFFFF"/>
+<rect x="1814" y="780" width="976" height="11" fill="#1E8E3E" clip-path="url(#c8)"/>
+<rect x="1814" y="780" width="976" height="330" rx="16" fill="none" stroke="#DFE3E9" stroke-width="1.6"/>
+<text x="1838" y="846" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="30" fill="#1F2733" font-weight="700">検索アプリ（Agent Search）</text>
+<rect x="1838" y="864" width="146" height="34" rx="17" fill="#E5F3E9"/>
+<text x="1851" y="887" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="17" fill="#1E8E3E" font-weight="600">Google Cloud</text>
+<text x="1838" y="938" font-family="SF Mono, Menlo, Consolas, monospace" font-size="21" fill="#6B7482">discoveryengine.googleapis.com  v1 (GA)</text>
+<text x="1838" y="974" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="21" fill="#6B7482">AI_APPLICATION_ID / LLM アドオン有効が必須</text>
+<text x="1838" y="1010" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="21" fill="#6B7482">データストアを検索対象にした検索 + 回答生成</text>
+<text x="1838" y="1046" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="21" fill="#6B7482">旧称: Vertex AI Search / Agent Builder</text>
+<line x1="530" y1="880" x2="668" y2="880" stroke="#9AA3B0" stroke-width="3.4" marker-end="url(#ah)" stroke-linecap="round"/>
+<text x="598.0" y="864" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="18" fill="#59616E" font-weight="600" text-anchor="middle">POST /search</text>
+<line x1="668" y1="1015" x2="530" y2="1015" stroke="#9AA3B0" stroke-width="3.4" marker-end="url(#ah)" stroke-linecap="round"/>
+<text x="598.0" y="999" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="18" fill="#59616E" font-weight="600" text-anchor="middle">JSON 応答</text>
+<line x1="1666" y1="880" x2="1804" y2="880" stroke="#9AA3B0" stroke-width="3.4" marker-end="url(#ah)" stroke-linecap="round"/>
+<text x="1734.0" y="841" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="18" fill="#59616E" font-weight="600" text-anchor="middle">search /</text>
+<text x="1734.0" y="864" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="18" fill="#59616E" font-weight="600" text-anchor="middle">answerQuery</text>
+<line x1="1804" y1="1015" x2="1666" y2="1015" stroke="#9AA3B0" stroke-width="3.4" marker-end="url(#ah)" stroke-linecap="round"/>
+<text x="1734.0" y="999" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="18" fill="#59616E" font-weight="600" text-anchor="middle">回答 + 参照</text>
+<line x1="2586.0" y1="602" x2="2586.0" y2="770" stroke="#9AA3B0" stroke-width="3.4" marker-end="url(#ah)" stroke-linecap="round"/>
+<text x="2608.0" y="684" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="18" fill="#59616E" font-weight="600">検索対象として</text>
+<text x="2608.0" y="710" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="18" fill="#59616E" font-weight="600">検索アプリに紐付け</text>
+<rect x="70" y="1206" width="2760" height="96" rx="18" fill="none" stroke="#D5DAE2" stroke-width="1.8" stroke-dasharray="8 8"/>
+<text x="104" y="1250" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="21" fill="#1F2733" font-weight="700">Step 4/4  スモークテスト</text>
+<text x="404" y="1250" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="21" fill="#6B7482">SMOKE_TEST_QUERY を 1 件検索し、回答が返ることを確認してからパイプラインを終了する。</text>
+<text x="104" y="1284" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="21" fill="#1F2733" font-weight="700">デプロイ</text>
+<text x="404" y="1284" font-family="Hiragino Sans, Hiragino Kaku Gothic ProN, Noto Sans JP, sans-serif" font-size="21" fill="#6B7482">./deploy.sh で Cloud Run へ。検索 API キーは Secret Manager から注入し、認証なし公開は ALLOW_UNAUTHENTICATED=true を明示した場合のみ。</text>
+</svg>

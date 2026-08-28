@@ -31,6 +31,11 @@ API エンドポイントは `discoveryengine.googleapis.com` のまま、
 
 ## アーキテクチャ
 
+![kintone から GCP 上の RAG を構築するまでのフロー](docs/architecture-flow.png)
+
+<details>
+<summary>簡易版（mermaid）</summary>
+
 ```mermaid
 flowchart LR
     K[kintone FAQアプリ] -->|REST API| O[Gemini で最適化<br/>類義語・キーワード付与]
@@ -40,6 +45,8 @@ flowchart LR
     A -->|search + answerQuery| S[Cloud Run<br/>検索API]
     S -->|JSON| C[Function Calling /<br/>音声応答システム]
 ```
+
+</details>
 
 処理は 2 系統に分かれます。
 
@@ -967,6 +974,9 @@ src/
   datastore.js            データストア取り込みと Operation ポーリング
   pipeline.js             同期パイプラインのオーケストレーション
 test/                     node:test による単体テスト
+docs/
+  architecture-flow.png   アーキテクチャ図 (README から参照)
+  architecture-flow.svg   同上のソース。編集したら PNG を書き出し直す
 deploy.sh                 Cloud Run へのデプロイ
 optimized_docs/           最適化済みドキュメントの出力先 (gitignore)
 ```
