@@ -628,6 +628,10 @@ Agent Search の **LLM 要約クエリのクォータ**（`discoveryengine.googl
 達しています。**既定は 1 分あたり 10 リクエスト / プロジェクト**と低いため、
 少しバーストしただけで到達します。
 
+`cpaas-love` は引き上げ申請（ケース #74838096）が一部承認され、
+2026-09-01 時点で **1 分あたり 60 リクエスト**になっています
+（申請は 100、承認は 60）。上限は下のコマンドで確認できます。
+
 ```bash
 # 現在の上限を確認する
 TOKEN=$(gcloud auth print-access-token)
@@ -642,6 +646,7 @@ https://console.cloud.google.com/apis/api/discoveryengine.googleapis.com/quotas?
 ```
 
 `llm_requests` の行を選び、「割り当てを編集」から新しい上限と理由を送信します。
+承認済みの上限をさらに引き上げるには、既存ケースへの返信ではなく新規リクエストの起票が必要です。
 
 なお `/search` は 1 リクエストにつき 1 回 `answerQuery` を呼びます
 （1 往復モードでも 2 往復モードでも回数は同じです）。
